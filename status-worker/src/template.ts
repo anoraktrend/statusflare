@@ -1,6 +1,4 @@
 export function renderAdminPage(services: any[], error?: string, isAuthenticated: boolean = false) {
-    const lastChecked = new Date().toLocaleString();
-
     if (!isAuthenticated) {
         return `<!DOCTYPE html>
 <html lang="en">
@@ -38,33 +36,20 @@ export function renderAdminPage(services: any[], error?: string, isAuthenticated
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>StatusFlare Admin - Manage Services</title>
     <style>
-        :root {
-            --bg-color: #0f172a;
-            --card-bg: #1e293b;
-            --text-main: #f8fafc;
-            --text-muted: #94a3b8;
-            --accent: #3b82f6;
-            --danger: #ef4444;
-        }
-
+        :root { --bg-color: #0f172a; --card-bg: #1e293b; --text-main: #f8fafc; --text-muted: #94a3b8; --accent: #3b82f6; --danger: #ef4444; }
         body { font-family: 'Inter', sans-serif; background: var(--bg-color); color: var(--text-main); margin: 0; display: flex; justify-content: center; padding: 40px 20px; }
         .container { width: 100%; max-width: 800px; }
         header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 40px; }
         h1 { margin: 0; font-size: 1.5rem; }
         .logout { color: var(--text-muted); text-decoration: none; font-size: 0.875rem; }
-
         .card { background: var(--card-bg); padding: 24px; border-radius: 12px; margin-bottom: 24px; }
         h2 { margin-top: 0; font-size: 1.1rem; margin-bottom: 20px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
-
         .form-group { margin-bottom: 16px; }
         label { display: block; margin-bottom: 8px; font-size: 0.875rem; color: var(--text-muted); }
         input { width: 100%; padding: 10px; border-radius: 6px; border: 1px solid #334155; background: #0f172a; color: white; box-sizing: border-box; }
-        
         .btn { padding: 10px 20px; border-radius: 6px; border: none; font-weight: 600; cursor: pointer; transition: opacity 0.2s; }
         .btn-primary { background: var(--accent); color: white; }
         .btn-danger { background: var(--danger)20; color: var(--danger); padding: 6px 12px; font-size: 0.75rem; }
-        .btn:hover { opacity: 0.8; }
-
         table { width: 100%; border-collapse: collapse; margin-top: 10px; }
         th { text-align: left; font-size: 0.75rem; text-transform: uppercase; color: var(--text-muted); padding: 12px 8px; border-bottom: 1px solid #334155; }
         td { padding: 12px 8px; border-bottom: 1px solid #ffffff0d; font-size: 0.875rem; }
@@ -77,7 +62,6 @@ export function renderAdminPage(services: any[], error?: string, isAuthenticated
             <h1>StatusFlare Admin</h1>
             <a href="/admin/logout" class="logout">Logout</a>
         </header>
-
         <div class="card">
             <h2>Add New Service</h2>
             <form method="POST" action="/admin/add">
@@ -98,18 +82,10 @@ export function renderAdminPage(services: any[], error?: string, isAuthenticated
                 <button type="submit" class="btn btn-primary">Add Service</button>
             </form>
         </div>
-
         <div class="card">
             <h2>Existing Services</h2>
             <table>
-                <thead>
-                    <tr>
-                        <th>Name</th>
-                        <th>URL</th>
-                        <th>Endpoint</th>
-                        <th class="actions">Action</th>
-                    </tr>
-                </thead>
+                <thead><tr><th>Name</th><th>URL</th><th>Endpoint</th><th class="actions">Action</th></tr></thead>
                 <tbody>
                     ${services.map(s => `
                         <tr>
@@ -127,18 +103,14 @@ export function renderAdminPage(services: any[], error?: string, isAuthenticated
                 </tbody>
             </table>
         </div>
-
-        <p style="text-align: center; color: var(--text-muted); font-size: 0.75rem;">
-            Changes take effect immediately on the next health check cycle.
-        </p>
     </div>
 </body>
 </html>`;
 }
 
-export function renderStatusPage(servicesStatus: any[], incidents: any[]) {
-    const overallStatus = servicesStatus.every(s => s.status === 'up') ? 'All Systems Operational' : 'Partial Outage';
-    const statusColor = servicesStatus.every(s => s.status === 'up') ? '#2ecc71' : '#f1c40f';
+export function renderStatusPage(services: any[], incidents: any[]) {
+    const overallStatus = services.every(s => s.latest.status === 'up') ? 'All Systems Operational' : 'Partial Outage';
+    const statusColor = services.every(s => s.latest.status === 'up') ? '#2ecc71' : '#f1c40f';
     const lastChecked = new Date().toLocaleString();
 
     return `<!DOCTYPE html>
@@ -164,42 +136,17 @@ export function renderStatusPage(servicesStatus: any[], incidents: any[]) {
             background-color: var(--bg-color);
             color: var(--text-main);
             margin: 0;
-            display: flex;
-            justify-content: center;
+            display: block;
             min-height: 100vh;
         }
 
-        .container {
-            width: 100%;
-            max-width: 800px;
-            padding: 40px 20px;
-        }
-
-        header {
-            margin-bottom: 40px;
-            text-align: center;
-        }
-
-        h1 {
-            font-size: 2.5rem;
-            margin-bottom: 10px;
-            letter-spacing: -0.025em;
-        }
+        .container { width: 100%; max-width: 800px; padding: 40px 20px; margin: 0 auto; }
+        header { margin-bottom: 40px; text-align: center; }
+        h1 { font-size: 2.5rem; margin-bottom: 10px; letter-spacing: -0.025em; }
 
         .overall-status {
-            padding: 20px;
-            border-radius: 12px;
-            background: ${statusColor}20;
-            border: 1px solid ${statusColor};
-            color: ${statusColor};
-            font-weight: 600;
-            font-size: 1.25rem;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 12px;
-            margin-bottom: 30px;
-            animation: pulse 2s infinite;
+            padding: 20px; border-radius: 12px; background: ${statusColor}20; border: 1px solid ${statusColor};
+            color: ${statusColor}; font-weight: 600; font-size: 1.25rem; display: flex; align-items: center; justify-content: center; gap: 12px; margin-bottom: 30px; animation: pulse 2s infinite;
         }
 
         @keyframes pulse {
@@ -208,110 +155,47 @@ export function renderStatusPage(servicesStatus: any[], incidents: any[]) {
             100% { box-shadow: 0 0 0 0 ${statusColor}00; }
         }
 
-        .section-title {
-            font-size: 1.25rem;
-            margin: 40px 0 20px;
-            color: var(--text-muted);
-            text-transform: uppercase;
-            letter-spacing: 0.1em;
-            font-weight: 700;
-        }
-
-        .services-grid {
-            display: grid;
-            gap: 16px;
-        }
+        .section-title { font-size: 1.25rem; margin: 40px 0 20px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.1em; font-weight: 700; }
+        .services-grid { display: flex; flex-direction: column; gap: 16px; }
 
         .service-card {
-            background: var(--card-bg);
-            padding: 20px;
-            border-radius: 12px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            transition: transform 0.2s ease;
-            border: 1px solid transparent;
+            background: var(--card-bg); border-radius: 12px; transition: transform 0.2s ease; border: 1px solid transparent; cursor: pointer; overflow: hidden;
+            display: block; width: 100%;
         }
+        .service-card:hover { border-color: var(--accent); }
+        .service-header { padding: 20px; display: flex; justify-content: space-between; align-items: center; }
+        .service-info h3 { margin: 0; font-size: 1.1rem; }
+        .service-info p { margin: 4px 0 0; font-size: 0.875rem; color: var(--text-muted); }
+        .latency { font-size: 0.75rem; color: var(--text-muted); margin-left: 8px; }
 
-        .service-card:hover {
-            transform: translateY(-2px);
-            border-color: var(--accent);
-        }
-
-        .service-info h3 {
-            margin: 0;
-            font-size: 1.1rem;
-        }
-
-        .service-info p {
-            margin: 4px 0 0;
-            font-size: 0.875rem;
-            color: var(--text-muted);
-        }
-
-        .latency {
-            font-size: 0.75rem;
-            color: var(--text-muted);
-            margin-left: 8px;
-        }
-
-        .status-badge {
-            padding: 6px 12px;
-            border-radius: 20px;
-            font-size: 0.75rem;
-            font-weight: 700;
-            text-transform: uppercase;
-        }
-
+        .status-badge { padding: 6px 12px; border-radius: 20px; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; }
         .status-up { background: var(--up-color)20; color: var(--up-color); }
         .status-down { background: var(--down-color)20; color: var(--down-color); }
 
-        .incidents-list {
-            background: var(--card-bg);
-            border-radius: 12px;
-            overflow: hidden;
-        }
+        .history-timeline { display: flex; gap: 2px; padding: 0 20px 20px; }
+        .history-dot { flex: 1; height: 16px; border-radius: 2px; position: relative; }
+        .history-dot.up { background: var(--up-color); opacity: 0.4; }
+        .history-dot.down { background: var(--down-color); }
+        .history-dot.unknown { background: #444; }
+        .history-dot:hover { opacity: 1; transform: scaleY(1.2); }
 
-        .incident-item {
-            padding: 16px 20px;
-            border-bottom: 1px solid #ffffff0d;
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-start;
+        .details-panel { 
+            display: none; padding: 20px; background: #00000020; border-top: 1px solid #ffffff0d; font-size: 0.875rem; 
         }
+        .service-card.expanded .details-panel { display: block; }
+        .details-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 10px; }
+        .detail-item { color: var(--text-muted); }
+        .detail-item strong { color: var(--text-main); display: block; }
 
-        .incident-item:last-child {
-            border-bottom: none;
-        }
+        .incidents-list { background: var(--card-bg); border-radius: 12px; overflow: hidden; }
+        .incident-item { padding: 16px 20px; border-bottom: 1px solid #ffffff0d; display: flex; justify-content: space-between; align-items: flex-start; }
+        .incident-item:last-child { border-bottom: none; }
+        .incident-details h4 { margin: 0; color: var(--down-color); font-size: 1rem; }
+        .incident-details span { font-size: 0.875rem; color: var(--text-muted); }
+        .incident-time { font-size: 0.875rem; color: var(--text-muted); white-space: nowrap; }
 
-        .incident-details h4 {
-            margin: 0;
-            color: var(--down-color);
-            font-size: 1rem;
-        }
-
-        .incident-details span {
-            font-size: 0.875rem;
-            color: var(--text-muted);
-        }
-
-        .incident-time {
-            font-size: 0.875rem;
-            color: var(--text-muted);
-            white-space: nowrap;
-        }
-
-        footer {
-            margin-top: 50px;
-            text-align: center;
-            color: var(--text-muted);
-            font-size: 0.875rem;
-        }
-
-        .refresh-info {
-            margin-top: 10px;
-            font-style: italic;
-        }
+        footer { margin-top: 50px; text-align: center; color: var(--text-muted); font-size: 0.875rem; padding-bottom: 40px; }
+        .refresh-info { margin-top: 10px; font-style: italic; }
     </style>
     <meta http-equiv="refresh" content="60">
 </head>
@@ -329,35 +213,54 @@ export function renderStatusPage(servicesStatus: any[], incidents: any[]) {
 
         <div class="section-title">Current Status</div>
         <div class="services-grid">
-            ${servicesStatus.map(service => `
-                <div class="service-card">
-                    <div class="service-info">
-                        <h3>${service.name} <span class="latency">${service.latency_ms ? service.latency_ms + 'ms' : ''}</span></h3>
-                        <p>${service.url}</p>
+            ${services.map(s => {
+                const latest = s.latest;
+                const historyDots = [...s.history].reverse().map(h => 
+                    `<div class="history-dot ${h.status}" title="${new Date(h.timestamp + 'Z').toLocaleString()} - ${h.latency_ms}ms"></div>`
+                ).join('');
+
+                return `
+                <div class="service-card" onclick="this.classList.toggle('expanded')">
+                    <div class="service-header">
+                        <div class="service-info">
+                            <h3>${s.name} <span class="latency">${latest.latency_ms ? latest.latency_ms + 'ms' : ''}</span></h3>
+                            <p>${s.url}</p>
+                        </div>
+                        <div class="status-badge ${latest.status === 'up' ? 'status-up' : 'status-down'}">
+                            ${latest.status?.toUpperCase()}
+                        </div>
                     </div>
-                    <div class="status-badge ${service.status === 'up' ? 'status-up' : 'status-down'}">
-                        ${service.status?.toUpperCase() || 'UNKNOWN'}
+                    <div class="history-timeline">
+                        ${historyDots}
                     </div>
-                </div>
-            `).join('')}
+                    <div class="details-panel">
+                        <div class="details-grid">
+                            <div class="detail-item"><strong>Last Status Code</strong> ${latest.status_code || 'N/A'}</div>
+                            <div class="detail-item"><strong>Last Checked</strong> ${new Date(latest.timestamp + (latest.timestamp.endsWith('Z') ? '' : 'Z')).toLocaleTimeString()}</div>
+                        </div>
+                        <div class="detail-item" style="margin-top: 12px;">
+                            <strong>Last Response Snippet</strong>
+                            <code style="display:block; background:#000; padding:8px; border-radius:4px; margin-top:4px; font-size:0.75rem; word-break:break-all;">
+                                ${latest.response_snippet ? latest.response_snippet.slice(0, 150).replace(/</g, '&lt;').replace(/>/g, '&gt;') : 'No response content'}
+                            </code>
+                        </div>
+                    </div>
+                </div>`;
+            }).join('')}
         </div>
 
         <div class="section-title">Incident History</div>
         <div class="incidents-list">
             ${incidents.length === 0 ? `
-                <div class="incident-item">
-                    <div class="incident-details">
-                        <span style="color: var(--up-color)">No recent incidents reported.</span>
-                    </div>
-                </div>
+                <div class="incident-item"><div class="incident-details"><span style="color: var(--up-color)">No recent incidents reported.</span></div></div>
             ` : incidents.map(incident => `
                 <div class="incident-item">
                     <div class="incident-details">
                         <h4>Outage: ${incident.name}</h4>
-                        <span>HTTP ${incident.status_code || 'Error'}: ${incident.response_snippet ? incident.response_snippet.slice(0, 50) + '...' : 'No response'}</span>
+                        <span>HTTP ${incident.status_code || 'Error'}: ${incident.response_snippet ? incident.response_snippet.slice(0, 50).replace(/</g, '&lt;').replace(/>/g, '&gt;') + '...' : 'No response'}</span>
                     </div>
                     <div class="incident-time">
-                        ${new Date(incident.timestamp + 'Z').toLocaleString()}
+                        ${new Date(incident.timestamp + (incident.timestamp.endsWith('Z') ? '' : 'Z')).toLocaleString()}
                     </div>
                 </div>
             `).join('')}
@@ -365,6 +268,7 @@ export function renderStatusPage(servicesStatus: any[], incidents: any[]) {
 
         <footer>
             <div class="refresh-info">Last checked: ${lastChecked} (Auto-refreshes every 60s)</div>
+            <p>Total Services Monitored: ${services.length}</p>
             <p>Powered by Cloudflare Workers & D1</p>
         </footer>
     </div>

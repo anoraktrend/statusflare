@@ -26,15 +26,13 @@ async function performHealthCheck(db: D1Database, service: Service) {
     const response = await fetch(fullUrl, {
       method: 'GET',
       headers: { 'User-Agent': 'StatusFlare/1.0' },
-      signal: AbortSignal.timeout(10000), // 10s timeout
+      signal: AbortSignal.timeout(10000),
     });
 
     status = response.ok ? 'up' : 'down';
     statusCode = response.status;
-    
     const text = await response.text();
     responseSnippet = text.slice(0, 200);
-
   } catch (error: any) {
     status = 'down';
     responseSnippet = error.message;
@@ -42,9 +40,7 @@ async function performHealthCheck(db: D1Database, service: Service) {
     const latency = Date.now() - start;
     await db.prepare(
       'INSERT INTO health_checks (service_id, status, status_code, response_snippet, latency_ms) VALUES (?, ?, ?, ?, ?)'
-    )
-    .bind(service.id, status, statusCode, responseSnippet, latency)
-    .run();
+    ).bind(service.id, status, statusCode, responseSnippet, latency).run();
   }
 }
 
@@ -52,10 +48,7 @@ async function isAuthenticated(request: Request, env: Env) {
   const cookie = request.headers.get('Cookie');
   if (!cookie) return false;
   const match = cookie.match(/session=([^;]+)/);
-  if (!match) return false;
-  // In a real app, use a proper session store or JWT. 
-  // For simplicity, we compare a signed token or just the password hash.
-  return match[1] === env.ADMIN_PASSWORD;
+  return match ? match[1] === env.ADMIN_PASSWORD : false;
 }
 
 export default {
@@ -67,18 +60,27 @@ export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
 
-    // --- Public Routes ---
-    if (url.pathname === '/') {
-      const statusQuery = `
-        SELECT s.name, s.url, h.status, h.latency_ms, h.status_code, h.timestamp
-        FROM services s
-        LEFT JOIN (
-          SELECT service_id, status, latency_ms, status_code, timestamp
+    if (url.pathname === '/' || url.pathname === '/api/status') {
+      const { results: services } = await env.status_db.prepare('SELECT * FROM services').all<Service>();
+      
+      const historyQuery = `
+        SELECT * FROM (
+          SELECT service_id, status, latency_ms, status_code, response_snippet, timestamp,
+          ROW_NUMBER() OVER(PARTITION BY service_id ORDER BY timestamp DESC) as rn
           FROM health_checks
-          WHERE id IN (SELECT MAX(id) FROM health_checks GROUP BY service_id)
-        ) h ON s.id = h.service_id
+        ) WHERE rn <= 30
       `;
-      const { results: serviceStatuses } = await env.status_db.prepare(statusQuery).all();
+      const { results: history } = await env.status_db.prepare(historyQuery).all();
+
+      const servicesWithHistory = services.map(s => {
+        const sHistory = history.filter((h: any) => h.service_id === s.id);
+        return {
+          ...s,
+          history: sHistory,
+          latest: sHistory[0] || { status: 'unknown', timestamp: new Date().toISOString() }
+        };
+      });
+
       const incidentQuery = `
         SELECT s.name, h.status_code, h.response_snippet, h.timestamp
         FROM health_checks h
@@ -87,19 +89,19 @@ export default {
         ORDER BY h.timestamp DESC LIMIT 10
       `;
       const { results: incidents } = await env.status_db.prepare(incidentQuery).all();
-      return new Response(renderStatusPage(serviceStatuses as any[], incidents as any[]), {
+      
+      if (url.pathname === '/api/status') {
+        return new Response(JSON.stringify({ services: servicesWithHistory, incidents }, null, 2), {
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+
+      return new Response(renderStatusPage(servicesWithHistory, incidents as any[]), {
         headers: { 'Content-Type': 'text/html' },
       });
     }
 
-    if (url.pathname === '/api/status') {
-        const { results: serviceStatuses } = await env.status_db.prepare('SELECT * FROM services').all();
-        return new Response(JSON.stringify(serviceStatuses), { headers: { 'Content-Type': 'application/json' } });
-    }
-
-    // --- Admin Routes ---
     if (url.pathname.startsWith('/admin')) {
-      // 1. Handle Login POST
       if (url.pathname === '/admin/login' && request.method === 'POST') {
         const formData = await request.formData();
         const password = formData.get('password');
@@ -115,7 +117,6 @@ export default {
         return new Response(renderAdminPage([], 'Invalid Password'), { headers: { 'Content-Type': 'text/html' } });
       }
 
-      // 2. Handle Logout
       if (url.pathname === '/admin/logout') {
         return new Response(null, {
           status: 302,
@@ -126,26 +127,20 @@ export default {
         });
       }
 
-      // 3. Auth Guard for all other /admin routes
       if (!await isAuthenticated(request, env)) {
         return new Response(renderAdminPage([]), { headers: { 'Content-Type': 'text/html' } });
       }
 
-      // 4. Handle Add Service
       if (url.pathname === '/admin/add' && request.method === 'POST') {
         const formData = await request.formData();
         const name = formData.get('name') as string;
         const serviceUrl = formData.get('url') as string;
         const endpoint = formData.get('health_endpoint') as string;
-
         await env.status_db.prepare('INSERT INTO services (name, url, health_endpoint) VALUES (?, ?, ?)')
-          .bind(name, serviceUrl, endpoint)
-          .run();
-        
+          .bind(name, serviceUrl, endpoint).run();
         return new Response(null, { status: 302, headers: { 'Location': '/admin' } });
       }
 
-      // 5. Handle Remove Service
       if (url.pathname === '/admin/remove' && request.method === 'POST') {
         const formData = await request.formData();
         const id = formData.get('id');
@@ -153,7 +148,6 @@ export default {
         return new Response(null, { status: 302, headers: { 'Location': '/admin' } });
       }
 
-      // 6. Render Admin Dashboard
       const { results: services } = await env.status_db.prepare('SELECT * FROM services').all();
       return new Response(renderAdminPage(services as any[], undefined, true), {
         headers: { 'Content-Type': 'text/html' },
