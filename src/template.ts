@@ -93,6 +93,16 @@ const globalStyles = `
     }
 `;
 
+function escapeHtml(str: string): string {
+  return str.replace(/[&<>"']/g, (m) => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;'
+  }[m] || m));
+}
+
 function renderSvgDot(status: string, size: number = 16) {
     const colorVar = status === 'up' ? 'var(--up-color)' : (status === 'down' ? 'var(--down-color)' : 'var(--warn-color)');
     return `<svg width="${size}" height="${size}" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg" style="display: inline-block; vertical-align: middle; flex-shrink: 0;">
@@ -371,8 +381,8 @@ export function renderStatusPage(services: any[], historicalIncidents: any[], ma
                 ${manualIncidents.map(i => `
                     <div class="incident-item" style="background: color-mix(in srgb, var(--down-color) 5%, transparent)">
                         <div class="incident-details">
-                            <h4 style="color: var(--down-color)">${i.title} ${i.service_name ? `(${i.service_name})` : ''}</h4>
-                            <p style="color: var(--text-main); margin: 8px 0;">${i.message}</p>
+                            <h4 style="color: var(--down-color)">${escapeHtml(i.title)} ${i.service_name ? `(${escapeHtml(i.service_name)})` : ''}</h4>
+                            <p style="color: var(--text-main); margin: 8px 0;">${escapeHtml(i.message)}</p>
                         </div>
                         <div class="incident-time">Started: ${new Date(i.created_at + (i.created_at.endsWith('Z') ? '' : 'Z')).toLocaleString()}</div>
                     </div>
@@ -394,8 +404,8 @@ export function renderStatusPage(services: any[], historicalIncidents: any[], ma
                 <div class="service-card" onclick="this.classList.toggle('expanded')">
                     <div class="service-header">
                         <div class="service-info">
-                            <h3>${s.name} <span class="latency">${latest.latency_ms ? latest.latency_ms + 'ms' : ''}</span></h3>
-                            <p>${s.url}</p>
+                            <h3>${escapeHtml(s.name)} <span class="latency">${latest.latency_ms ? latest.latency_ms + 'ms' : ''}</span></h3>
+                            <p>${escapeHtml(s.url)}</p>
                         </div>
                         <div class="status-badge ${latest.status === 'up' ? 'status-up' : 'status-down'}">
                             ${renderSvgDot(latest.status, 12)}
@@ -413,7 +423,7 @@ export function renderStatusPage(services: any[], historicalIncidents: any[], ma
                         <div class="detail-item" style="margin-top: 12px;">
                             <strong>Last Response Snippet</strong>
                             <code style="display:block; background: var(--code-bg); color: var(--text-muted); padding:8px; border-radius:4px; margin-top:4px; font-size:0.75rem; word-break:break-all; border: 1px solid var(--border-color);">
-                                ${latest.response_snippet ? latest.response_snippet.slice(0, 150).replace(/</g, '&lt;').replace(/>/g, '&gt;') : 'No response content'}
+                                ${latest.response_snippet ? escapeHtml(latest.response_snippet.slice(0, 150)) : 'No response content'}
                             </code>
                         </div>
                     </div>
@@ -428,8 +438,8 @@ export function renderStatusPage(services: any[], historicalIncidents: any[], ma
             ` : historicalIncidents.map(incident => `
                 <div class="incident-item">
                     <div class="incident-details">
-                        <h4>Outage: ${incident.name}</h4>
-                        <span>HTTP ${incident.status_code || 'Error'}: ${incident.response_snippet ? incident.response_snippet.slice(0, 50).replace(/</g, '&lt;').replace(/>/g, '&gt;') + '...' : 'No response'}</span>
+                        <h4>Outage: ${escapeHtml(incident.name)}</h4>
+                        <span>HTTP ${incident.status_code || 'Error'}: ${incident.response_snippet ? escapeHtml(incident.response_snippet.slice(0, 50)) + '...' : 'No response'}</span>
                     </div>
                     <div class="incident-time">
                         ${new Date(incident.timestamp + (incident.timestamp.endsWith('Z') ? '' : 'Z')).toLocaleString()}

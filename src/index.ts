@@ -14,6 +14,16 @@ interface Service {
   health_endpoint: string;
 }
 
+function escapeHtml(str: string): string {
+  return str.replace(/[&<>"']/g, (m) => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;'
+  }[m] || m));
+}
+
 async function performHealthCheck(db: D1Database, service: Service) {
   const start = Date.now();
   let status: 'up' | 'down' = 'down';
@@ -40,10 +50,10 @@ async function performHealthCheck(db: D1Database, service: Service) {
     responseSnippet = error.message;
   } finally {
     const latency = Date.now() - start;
-    const sanitizedSnippet = sanitize.value(responseSnippet || '', 'string');
+    // Store raw snippet for storage
     await db.prepare(
       'INSERT INTO health_checks (service_id, status, status_code, response_snippet, latency_ms) VALUES (?, ?, ?, ?, ?)'
-    ).bind(service.id, status, statusCode, sanitizedSnippet, latency).run();
+    ).bind(service.id, status, statusCode, responseSnippet || '', latency).run();
   }
 }
 
@@ -91,8 +101,6 @@ export default {
       const result = await env.status_db.prepare(query).bind(serviceName, `%${serviceName}%`).first() as any;
       const status = result ? result.status : 'unknown';
       
-      // Need a way to call the function from template.ts or inline it. 
-      // For now, we'll inline the logic since we already have it in src/index.ts
       const SVG_TEMPLATE = `<?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <svg width="{{WIDTH}}" height="{{HEIGHT}}" viewBox="0 0 512 512" version="1.1" xmlns="http://www.w3.org/2000/svg">
   <g>
@@ -110,6 +118,14 @@ export default {
           'Cache-Control': 'no-cache, no-store, must-revalidate',
           'Access-Control-Allow-Origin': '*'
         }
+      });
+    }
+
+    if (path === '/api/check') {
+      const { results } = await env.status_db.prepare('SELECT * FROM services').all<Service>();
+      await Promise.all(results.map(service => performHealthCheck(env.status_db, service)));
+      return new Response('Health check triggered and saved to D1', {
+        headers: { 'Access-Control-Allow-Origin': '*' }
       });
     }
 
@@ -183,7 +199,7 @@ export default {
         return new Response(renderAdminPage([], []), { headers: { 'Content-Type': 'text/html' } });
       }
 
-      // --- Admin Protected Actions ---
+      // --- Admin Protected Actions (Sanitize User Input using 'sanitize' package) ---
       if (adminPath === '/admin/add' && request.method === 'POST') {
         const formData = await request.formData();
         const name = sanitize.value(formData.get('name') as string, 'string');
@@ -201,7 +217,7 @@ export default {
         return new Response(null, { status: 302, headers: { 'Location': '/admin' } });
       }
 
-      // --- Manual Incident Management ---
+      // --- Manual Incident Management (Sanitize User Input using 'sanitize' package) ---
       if (adminPath === '/admin/incidents/create' && request.method === 'POST') {
         const formData = await request.formData();
         const title = sanitize.value(formData.get('title') as string, 'string');
