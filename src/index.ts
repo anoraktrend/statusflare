@@ -14,43 +14,6 @@ interface Service {
   health_endpoint: string;
 }
 
-const SVG_TEMPLATE = `<?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<svg
-   width="{{WIDTH}}"
-   height="{{HEIGHT}}"
-   viewBox="0 0 512 512"
-   version="1.1"
-   xmlns="http://www.w3.org/2000/svg">
-  <g>
-    <ellipse
-       style="fill:#000000;stroke:{{COLOR}};stroke-width:11.8631;stroke-dasharray:none;stroke-opacity:1;paint-order:normal"
-       cx="256"
-       cy="255.99998"
-       rx="250.06845"
-       ry="250.06844" />
-    <ellipse
-       style="fill:#000000;stroke:{{COLOR}};stroke-width:41.994;stroke-dasharray:none;stroke-opacity:1;paint-order:normal"
-       cx="256"
-       cy="255.99998"
-       rx="204.00301"
-       ry="204.00299" />
-    <ellipse
-       style="fill:{{COLOR}};fill-opacity:1;stroke:{{COLOR}};stroke-width:7.50716;stroke-dasharray:none;stroke-opacity:1;paint-order:normal"
-       cx="256"
-       cy="256"
-       rx="158.24641"
-       ry="158.24643" />
-  </g>
-</svg>`;
-
-function generateStatusSvg(status: string, width: string = '512', height: string = '512') {
-  const color = status === 'up' ? '#007c00' : (status === 'down' ? '#f80008' : '#6c7485');
-  return SVG_TEMPLATE
-    .replace(/{{COLOR}}/g, color)
-    .replace(/{{WIDTH}}/g, width)
-    .replace(/{{HEIGHT}}/g, height);
-}
-
 async function performHealthCheck(db: D1Database, service: Service) {
   const start = Date.now();
   let status: 'up' | 'down' = 'down';
@@ -110,7 +73,6 @@ export default {
     // --- Dynamic SVG Status Route ---
     if (path.startsWith('/badge/') && path.endsWith('.svg')) {
       const serviceName = decodeURIComponent(path.substring(7, path.length - 4));
-      
       const width = url.searchParams.get('w') || '512';
       const height = url.searchParams.get('h') || width;
 
@@ -129,7 +91,20 @@ export default {
       const result = await env.status_db.prepare(query).bind(serviceName, `%${serviceName}%`).first() as any;
       const status = result ? result.status : 'unknown';
       
-      return new Response(generateStatusSvg(status, width, height), {
+      // Need a way to call the function from template.ts or inline it. 
+      // For now, we'll inline the logic since we already have it in src/index.ts
+      const SVG_TEMPLATE = `<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg width="{{WIDTH}}" height="{{HEIGHT}}" viewBox="0 0 512 512" version="1.1" xmlns="http://www.w3.org/2000/svg">
+  <g>
+    <ellipse style="fill:#000000;stroke:{{COLOR}};stroke-width:11.8631;stroke-dasharray:none;stroke-opacity:1;paint-order:normal" cx="256" cy="255.99998" rx="250.06845" ry="250.06844" />
+    <ellipse style="fill:#000000;stroke:{{COLOR}};stroke-width:41.994;stroke-dasharray:none;stroke-opacity:1;paint-order:normal" cx="256" cy="255.99998" rx="204.00301" ry="204.00299" />
+    <ellipse style="fill:{{COLOR}};fill-opacity:1;stroke:{{COLOR}};stroke-width:7.50716;stroke-dasharray:none;stroke-opacity:1;paint-order:normal" cx="256" cy="256" rx="158.24641" ry="158.24643" />
+  </g>
+</svg>`;
+      const color = status === 'up' ? '#007c00' : (status === 'down' ? '#f80008' : '#6c7485');
+      const rendered = SVG_TEMPLATE.replace(/{{COLOR}}/g, color).replace(/{{WIDTH}}/g, width).replace(/{{HEIGHT}}/g, height);
+
+      return new Response(rendered, {
         headers: {
           'Content-Type': 'image/svg+xml',
           'Cache-Control': 'no-cache, no-store, must-revalidate',
@@ -156,18 +131,29 @@ export default {
           latest: sHistory[0] || { status: 'unknown', timestamp: new Date().toISOString() }
         };
       });
-      const incidentQuery = `
+
+      const historicalOutageQuery = `
         SELECT s.name, h.status_code, h.response_snippet, h.timestamp
         FROM health_checks h JOIN services s ON h.service_id = s.id
         WHERE h.status = 'down' ORDER BY h.timestamp DESC LIMIT 10
       `;
-      const { results: incidents } = await env.status_db.prepare(incidentQuery).all();
+      const { results: historicalIncidents } = await env.status_db.prepare(historicalOutageQuery).all();
+
+      const manualIncidentQuery = `
+        SELECT i.*, s.name as service_name
+        FROM incidents i
+        LEFT JOIN services s ON i.service_id = s.id
+        WHERE i.status = 'open'
+        ORDER BY i.created_at DESC
+      `;
+      const { results: manualIncidents } = await env.status_db.prepare(manualIncidentQuery).all();
+
       if (path === '/api/status') {
-        return new Response(JSON.stringify({ services: servicesWithHistory, incidents }, null, 2), {
+        return new Response(JSON.stringify({ services: servicesWithHistory, historicalIncidents, manualIncidents }, null, 2), {
           headers: { 'Content-Type': 'application/json' },
         });
       }
-      return new Response(renderStatusPage(servicesWithHistory, incidents as any[]), {
+      return new Response(renderStatusPage(servicesWithHistory, historicalIncidents as any[], manualIncidents as any[]), {
         headers: { 'Content-Type': 'text/html' },
       });
     }
@@ -176,42 +162,28 @@ export default {
       const adminPath = path.replace(/\/$/, '');
 
       if (adminPath === '/admin/login' && request.method === 'POST') {
-        try {
-          const formData = await request.formData();
-          const password = formData.get('password') as string;
-          if (!env.ADMIN_PASSWORD_HASH) {
-            return new Response(renderAdminPage([], 'Server Error: ADMIN_PASSWORD_HASH not configured'), { headers: { 'Content-Type': 'text/html' } });
-          }
-          const enteredHash = await hashPassword(password);
-          if (enteredHash === env.ADMIN_PASSWORD_HASH) {
-            return new Response(null, {
-              status: 302,
-              headers: {
-                'Location': '/admin',
-                'Set-Cookie': 'session=true; Path=/; HttpOnly; SameSite=Lax; Max-Age=3600'
-              }
-            });
-          }
-          return new Response(renderAdminPage([], 'Invalid Password'), { headers: { 'Content-Type': 'text/html' } });
-        } catch (e: any) {
-          return new Response(renderAdminPage([], 'Error processing login: ' + e.message), { headers: { 'Content-Type': 'text/html' } });
+        const formData = await request.formData();
+        const password = formData.get('password') as string;
+        if (!env.ADMIN_PASSWORD_HASH) return new Response('Server Error', { status: 500 });
+        const enteredHash = await hashPassword(password);
+        if (enteredHash === env.ADMIN_PASSWORD_HASH) {
+          return new Response(null, {
+            status: 302,
+            headers: { 'Location': '/admin', 'Set-Cookie': 'session=true; Path=/; HttpOnly; SameSite=Lax; Max-Age=3600' }
+          });
         }
+        return new Response(renderAdminPage([], []), { headers: { 'Content-Type': 'text/html' } });
       }
 
       if (adminPath === '/admin/logout') {
-        return new Response(null, {
-          status: 302,
-          headers: {
-            'Location': '/admin',
-            'Set-Cookie': 'session=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT'
-          }
-        });
+        return new Response(null, { status: 302, headers: { 'Location': '/admin', 'Set-Cookie': 'session=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT' } });
       }
 
       if (!await isAuthenticated(request, env)) {
-        return new Response(renderAdminPage([]), { headers: { 'Content-Type': 'text/html' } });
+        return new Response(renderAdminPage([], []), { headers: { 'Content-Type': 'text/html' } });
       }
 
+      // --- Admin Protected Actions ---
       if (adminPath === '/admin/add' && request.method === 'POST') {
         const formData = await request.formData();
         const name = sanitize.value(formData.get('name') as string, 'string');
@@ -229,8 +201,29 @@ export default {
         return new Response(null, { status: 302, headers: { 'Location': '/admin' } });
       }
 
+      // --- Manual Incident Management ---
+      if (adminPath === '/admin/incidents/create' && request.method === 'POST') {
+        const formData = await request.formData();
+        const title = sanitize.value(formData.get('title') as string, 'string');
+        const message = sanitize.value(formData.get('message') as string, 'string');
+        const service_id = formData.get('service_id') || null;
+        await env.status_db.prepare('INSERT INTO incidents (title, message, service_id) VALUES (?, ?, ?)')
+          .bind(title, message, service_id).run();
+        return new Response(null, { status: 302, headers: { 'Location': '/admin' } });
+      }
+
+      if (adminPath === '/admin/incidents/resolve' && request.method === 'POST') {
+        const formData = await request.formData();
+        const id = formData.get('id');
+        await env.status_db.prepare("UPDATE incidents SET status = 'resolved', resolved_at = CURRENT_TIMESTAMP WHERE id = ?")
+          .bind(id).run();
+        return new Response(null, { status: 302, headers: { 'Location': '/admin' } });
+      }
+
       const { results: services } = await env.status_db.prepare('SELECT * FROM services').all();
-      return new Response(renderAdminPage(services as any[], undefined, true), {
+      const { results: activeIncidents } = await env.status_db.prepare('SELECT i.*, s.name as service_name FROM incidents i LEFT JOIN services s ON i.service_id = s.id WHERE i.status = "open"').all();
+      
+      return new Response(renderAdminPage(services as any[], activeIncidents as any[], undefined, true), {
         headers: { 'Content-Type': 'text/html' },
       });
     }

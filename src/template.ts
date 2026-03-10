@@ -27,6 +27,13 @@ const globalStyles = `
         box-sizing: border-box;
     }
 
+    :root {
+        --up-color: #007c00;
+        --down-color: #f80008;
+        --warn-color: #6c7485;
+        --accent: #cba6f7;
+    }
+
     /* Catppuccin Mocha (Dark) - Default */
     :root, [data-theme='dark'] {
         --bg-color: #1e1e2e;
@@ -95,7 +102,7 @@ function renderSvgDot(status: string, size: number = 16) {
   </svg>`;
 }
 
-export function renderAdminPage(services: any[], error?: string, isAuthenticated: boolean = false) {
+export function renderAdminPage(services: any[], activeIncidents: any[], error?: string, isAuthenticated: boolean = false) {
     if (!isAuthenticated) {
         return `<!DOCTYPE html>
 <html lang="en">
@@ -144,10 +151,13 @@ export function renderAdminPage(services: any[], error?: string, isAuthenticated
         h2 { margin-top: 0; font-size: 1.1rem; margin-bottom: 20px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
         .form-group { margin-bottom: 16px; }
         label { display: block; margin-bottom: 8px; font-size: 0.875rem; color: var(--text-muted); }
-        input { width: 100%; padding: 10px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--bg-color); color: var(--text-main); box-sizing: border-box; }
+        input, textarea, select { width: 100%; padding: 10px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--bg-color); color: var(--text-main); box-sizing: border-box; font-family: inherit; }
+        
         .btn { padding: 10px 20px; border-radius: 6px; border: none; font-weight: 600; cursor: pointer; transition: opacity 0.2s; }
         .btn-primary { background: var(--accent); color: white; }
         .btn-danger { background: var(--down-color)20; color: var(--down-color); padding: 6px 12px; font-size: 0.75rem; }
+        .btn-success { background: var(--up-color)20; color: var(--up-color); padding: 6px 12px; font-size: 0.75rem; }
+        
         table { width: 100%; border-collapse: collapse; margin-top: 10px; }
         th { text-align: left; font-size: 0.75rem; text-transform: uppercase; color: var(--text-muted); padding: 12px 8px; border-bottom: 1px solid var(--border-color); }
         td { padding: 12px 8px; border-bottom: 1px solid var(--border-color); font-size: 0.875rem; }
@@ -162,10 +172,12 @@ export function renderAdminPage(services: any[], error?: string, isAuthenticated
             <h1>StatusFlare Admin</h1>
             <a href="/admin/logout" class="logout">Logout</a>
         </header>
-        <div class="card">
-            <h2>Add New Service</h2>
-            <form method="POST" action="/admin/add">
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px;">
+
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 24px;">
+            <!-- Service Management -->
+            <div class="card">
+                <h2>Add New Service</h2>
+                <form method="POST" action="/admin/add">
                     <div class="form-group">
                         <label>Service Name</label>
                         <input type="text" name="name" placeholder="e.g. My API" required>
@@ -174,14 +186,64 @@ export function renderAdminPage(services: any[], error?: string, isAuthenticated
                         <label>Base URL</label>
                         <input type="url" name="url" placeholder="https://api.example.com" required>
                     </div>
-                </div>
-                <div class="form-group">
-                    <label>Health Endpoint</label>
-                    <input type="text" name="health_endpoint" placeholder="/api/health" required>
-                </div>
-                <button type="submit" class="btn btn-primary">Add Service</button>
-            </form>
+                    <div class="form-group">
+                        <label>Health Endpoint</label>
+                        <input type="text" name="health_endpoint" placeholder="/api/health" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Add Service</button>
+                </form>
+            </div>
+
+            <!-- Incident Management -->
+            <div class="card">
+                <h2>Report Incident</h2>
+                <form method="POST" action="/admin/incidents/create">
+                    <div class="form-group">
+                        <label>Title</label>
+                        <input type="text" name="title" placeholder="e.g. Database Connectivity Issues" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Affected Service (Optional)</label>
+                        <select name="service_id">
+                            <option value="">System Wide</option>
+                            ${services.map(s => `<option value="${s.id}">${s.name}</option>`).join('')}
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Message</label>
+                        <textarea name="message" rows="3" placeholder="Describe the issue..." required></textarea>
+                    </div>
+                    <button type="submit" class="btn btn-primary" style="background: var(--down-color)">Post Incident</button>
+                </form>
+            </div>
         </div>
+
+        <!-- Active Incidents -->
+        <div class="card">
+            <h2>Active Incidents</h2>
+            <div style="overflow-x: auto;">
+                <table>
+                    <thead><tr><th>Title</th><th>Service</th><th>Started</th><th class="actions">Action</th></tr></thead>
+                    <tbody>
+                        ${activeIncidents.length === 0 ? '<tr><td colspan="4" style="text-align:center; padding: 20px;">No active incidents.</td></tr>' : activeIncidents.map(i => `
+                            <tr>
+                                <td><strong>${i.title}</strong></td>
+                                <td>${i.service_name || 'System Wide'}</td>
+                                <td>${new Date(i.created_at + (i.created_at.endsWith('Z') ? '' : 'Z')).toLocaleString()}</td>
+                                <td class="actions">
+                                    <form method="POST" action="/admin/incidents/resolve" style="display:inline">
+                                        <input type="hidden" name="id" value="${i.id}">
+                                        <button type="submit" class="btn btn-success">Resolve</button>
+                                    </form>
+                                </td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Existing Services -->
         <div class="card">
             <h2>Existing Services</h2>
             <div style="overflow-x: auto;">
@@ -210,9 +272,10 @@ export function renderAdminPage(services: any[], error?: string, isAuthenticated
 </html>`;
 }
 
-export function renderStatusPage(services: any[], incidents: any[]) {
-    const overallStatus = services.every(s => s.latest.status === 'up') ? 'All Systems Operational' : 'Partial Outage';
-    const overallStatusColor = services.every(s => s.latest.status === 'up') ? 'var(--up-color)' : 'var(--warn-color)';
+export function renderStatusPage(services: any[], historicalIncidents: any[], manualIncidents: any[]) {
+    const overallStatus = manualIncidents.length > 0 ? 'outage' : (services.every(s => s.latest.status === 'up') ? 'operational' : 'outage');
+    const overallStatusText = manualIncidents.length > 0 ? 'Active System Incident' : (services.every(s => s.latest.status === 'up') ? 'All Systems Operational' : 'Partial System Outage');
+    const overallStatusColor = overallStatus === 'operational' ? 'var(--up-color)' : (manualIncidents.length > 0 ? 'var(--down-color)' : 'var(--warn-color)');
     const lastChecked = new Date().toLocaleString();
 
     return `<!DOCTYPE html>
@@ -228,16 +291,16 @@ export function renderStatusPage(services: any[], incidents: any[]) {
         h1 { font-size: 2.5rem; margin-bottom: 10px; letter-spacing: -0.025em; color: var(--accent); }
 
         .overall-status {
-            padding: 20px; border-radius: 12px; background: color-mix(in srgb, var(--up-color) 15%, transparent); border: 1px solid var(--up-color);
-            color: var(--up-color); font-weight: 600; font-size: 1.25rem; display: flex; align-items: center; justify-content: center; gap: 12px; margin-bottom: 30px; animation: pulse 2s infinite;
+            padding: 20px; border-radius: 12px; background: color-mix(in srgb, ${overallStatusColor} 15%, transparent); border: 1px solid ${overallStatusColor};
+            color: ${overallStatusColor}; font-weight: 600; font-size: 1.25rem; display: flex; align-items: center; justify-content: center; gap: 12px; margin-bottom: 30px; animation: pulse 2s infinite;
         }
         
         [data-theme='dark'] .overall-status {
-             background: color-mix(in srgb, var(--up-color) 10%, transparent);
+             background: color-mix(in srgb, ${overallStatusColor} 10%, transparent);
         }
 
         @keyframes pulse {
-            0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--up-color) 40%, transparent); }
+            0% { box-shadow: 0 0 0 0 color-mix(in srgb, ${overallStatusColor} 40%, transparent); }
             70% { box-shadow: 0 0 0 10px transparent; }
             100% { box-shadow: 0 0 0 0 transparent; }
         }
@@ -299,8 +362,23 @@ export function renderStatusPage(services: any[], incidents: any[]) {
 
         <div class="overall-status">
             ${renderSvgDot(overallStatus === 'operational' ? 'up' : 'down', 24)}
-            ${overallStatus}
+            ${overallStatusText}
         </div>
+
+        ${manualIncidents.length > 0 ? `
+            <div class="section-title" style="color: var(--down-color)">Active Incidents</div>
+            <div class="incidents-list" style="border-color: var(--down-color); margin-bottom: 40px;">
+                ${manualIncidents.map(i => `
+                    <div class="incident-item" style="background: color-mix(in srgb, var(--down-color) 5%, transparent)">
+                        <div class="incident-details">
+                            <h4 style="color: var(--down-color)">${i.title} ${i.service_name ? `(${i.service_name})` : ''}</h4>
+                            <p style="color: var(--text-main); margin: 8px 0;">${i.message}</p>
+                        </div>
+                        <div class="incident-time">Started: ${new Date(i.created_at + (i.created_at.endsWith('Z') ? '' : 'Z')).toLocaleString()}</div>
+                    </div>
+                `).join('')}
+            </div>
+        ` : ''}
 
         <div class="section-title">Current Status</div>
         <div class="services-grid">
@@ -343,11 +421,11 @@ export function renderStatusPage(services: any[], incidents: any[]) {
             }).join('')}
         </div>
 
-        <div class="section-title">Incident History</div>
+        <div class="section-title">Historical Outages</div>
         <div class="incidents-list">
-            ${incidents.length === 0 ? `
-                <div class="incident-item"><div class="incident-details"><span style="color: var(--up-color)">No recent incidents reported.</span></div></div>
-            ` : incidents.map(incident => `
+            ${historicalIncidents.length === 0 ? `
+                <div class="incident-item"><div class="incident-details"><span style="color: var(--up-color)">No recent outages reported.</span></div></div>
+            ` : historicalIncidents.map(incident => `
                 <div class="incident-item">
                     <div class="incident-details">
                         <h4>Outage: ${incident.name}</h4>
