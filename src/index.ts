@@ -28,17 +28,18 @@ const SVG_TEMPLATE = `<?xml version="1.0" encoding="UTF-8" standalone="no"?>
        cy="255.99998"
        rx="250.06845"
        ry="250.06844" />
-    <circle
-       style="fill:#000000;stroke:{{COLOR}};stroke-width:10.89;stroke-dasharray:none;stroke-opacity:1;paint-order:normal"
-       cx="257"
-       cy="257"
-       r="229.55501" />
     <ellipse
-       style="fill:{{COLOR}};fill-opacity:1;stroke:{{COLOR}};stroke-width:9.82419;stroke-dasharray:none;stroke-opacity:1;paint-order:normal"
+       style="fill:#000000;stroke:{{COLOR}};stroke-width:41.994;stroke-dasharray:none;stroke-opacity:1;paint-order:normal"
        cx="256"
-       cy="256.00003"
-       rx="207.08791"
-       ry="207.08792" />
+       cy="255.99998"
+       rx="204.00301"
+       ry="204.00299" />
+    <ellipse
+       style="fill:{{COLOR}};fill-opacity:1;stroke:{{COLOR}};stroke-width:7.50716;stroke-dasharray:none;stroke-opacity:1;paint-order:normal"
+       cx="256"
+       cy="256"
+       rx="158.24641"
+       ry="158.24643" />
   </g>
 </svg>`;
 
@@ -111,7 +112,7 @@ export default {
       const serviceName = decodeURIComponent(path.substring(7, path.length - 4));
       
       const width = url.searchParams.get('w') || '512';
-      const height = url.searchParams.get('h') || width; // Default height to width if not provided
+      const height = url.searchParams.get('h') || width;
 
       const query = `
         SELECT s.name, h.status
