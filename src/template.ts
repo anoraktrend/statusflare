@@ -21,10 +21,12 @@ const themeScript = `
 `;
 
 const globalStyles = `
+    @import url('https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400;1,700&display=swap');
+
     :root {
-        --up-color: #2ecc71;
-        --down-color: #ef4444;
-        --warn-color: #f1c40f;
+        --up-color: #007c00;
+        --down-color: #f80008;
+        --warn-color: #6c7485;
         --accent: #3b82f6;
     }
 
@@ -49,7 +51,7 @@ const globalStyles = `
     }
 
     body {
-        font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        font-family: 'Space Mono', monospace;
         background-color: var(--bg-color);
         color: var(--text-main);
         margin: 0;
@@ -76,6 +78,15 @@ const globalStyles = `
         z-index: 100;
     }
 `;
+
+function renderSvgDot(status: string, size: number = 16) {
+    const color = status === 'up' ? '#007c00' : (status === 'down' ? '#f80008' : '#6c7485');
+    return `<svg width="${size}" height="${size}" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg" style="display: inline-block; vertical-align: middle;">
+    <ellipse cx="256" cy="255.99998" rx="250.06845" ry="250.06844" fill="black" stroke="${color}" stroke-width="11.8631" />
+    <ellipse cx="256" cy="255.99998" rx="204.00301" ry="204.00299" fill="black" stroke="${color}" stroke-width="41.994" />
+    <ellipse cx="256" cy="256" rx="158.24641" ry="158.24643" fill="${color}" stroke="${color}" stroke-width="7.50716" />
+  </svg>`;
+}
 
 export function renderAdminPage(services: any[], error?: string, isAuthenticated: boolean = false) {
     if (!isAuthenticated) {
@@ -192,7 +203,7 @@ export function renderAdminPage(services: any[], error?: string, isAuthenticated
 
 export function renderStatusPage(services: any[], incidents: any[]) {
     const overallStatus = services.every(s => s.latest.status === 'up') ? 'All Systems Operational' : 'Partial Outage';
-    const statusColor = services.every(s => s.latest.status === 'up') ? '#2ecc71' : '#f1c40f';
+    const overallStatusColor = services.every(s => s.latest.status === 'up') ? '#007c00' : '#f1c40f';
     const lastChecked = new Date().toLocaleString();
 
     return `<!DOCTYPE html>
@@ -208,14 +219,14 @@ export function renderStatusPage(services: any[], incidents: any[]) {
         h1 { font-size: 2.5rem; margin-bottom: 10px; letter-spacing: -0.025em; }
 
         .overall-status {
-            padding: 20px; border-radius: 12px; background: ${statusColor}20; border: 1px solid ${statusColor};
-            color: ${statusColor}; font-weight: 600; font-size: 1.25rem; display: flex; align-items: center; justify-content: center; gap: 12px; margin-bottom: 30px; animation: pulse 2s infinite;
+            padding: 20px; border-radius: 12px; background: ${overallStatusColor}20; border: 1px solid ${overallStatusColor};
+            color: ${overallStatusColor}; font-weight: 600; font-size: 1.25rem; display: flex; align-items: center; justify-content: center; gap: 12px; margin-bottom: 30px; animation: pulse 2s infinite;
         }
 
         @keyframes pulse {
-            0% { box-shadow: 0 0 0 0 ${statusColor}40; }
-            70% { box-shadow: 0 0 0 10px ${statusColor}00; }
-            100% { box-shadow: 0 0 0 0 ${statusColor}00; }
+            0% { box-shadow: 0 0 0 0 ${overallStatusColor}40; }
+            70% { box-shadow: 0 0 0 10px ${overallStatusColor}00; }
+            100% { box-shadow: 0 0 0 0 ${overallStatusColor}00; }
         }
 
         .section-title { font-size: 1.25rem; margin: 40px 0 20px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.1em; font-weight: 700; }
@@ -231,16 +242,14 @@ export function renderStatusPage(services: any[], incidents: any[]) {
         .service-info p { margin: 4px 0 0; font-size: 0.875rem; color: var(--text-muted); }
         .latency { font-size: 0.75rem; color: var(--text-muted); margin-left: 8px; }
 
-        .status-badge { padding: 6px 12px; border-radius: 20px; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; }
+        .status-badge { padding: 6px 12px; border-radius: 20px; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; display: flex; align-items: center; gap: 6px; }
         .status-up { background: var(--up-color)20; color: var(--up-color); }
         .status-down { background: var(--down-color)20; color: var(--down-color); }
 
-        .history-timeline { display: flex; gap: 2px; padding: 0 20px 20px; }
-        .history-dot { flex: 1; height: 16px; border-radius: 2px; position: relative; }
-        .history-dot.up { background: var(--up-color); opacity: 0.4; }
-        .history-dot.down { background: var(--down-color); }
-        .history-dot.unknown { background: var(--text-muted); opacity: 0.2; }
-        .history-dot:hover { opacity: 1; transform: scaleY(1.2); }
+        .history-timeline { display: flex; gap: 4px; padding: 0 20px 20px; }
+        .history-item { flex: 1; display: flex; align-items: center; justify-content: center; }
+        .history-item svg { width: 100%; height: auto; max-width: 16px; opacity: 0.6; transition: transform 0.2s, opacity 0.2s; }
+        .history-item:hover svg { transform: scale(1.3); opacity: 1; }
 
         .details-panel { 
             display: none; padding: 20px; background: rgba(0,0,0,0.05); border-top: 1px solid var(--border-color); font-size: 0.875rem; 
@@ -273,7 +282,7 @@ export function renderStatusPage(services: any[], incidents: any[]) {
         </header>
 
         <div class="overall-status">
-            <span style="width: 12px; height: 12px; border-radius: 50%; background: ${statusColor}"></span>
+            ${renderSvgDot(overallStatus === 'operational' ? 'up' : 'down', 24)}
             ${overallStatus}
         </div>
 
@@ -281,8 +290,10 @@ export function renderStatusPage(services: any[], incidents: any[]) {
         <div class="services-grid">
             ${services.map(s => {
                 const latest = s.latest;
-                const historyDots = [...s.history].reverse().map(h => 
-                    `<div class="history-dot ${h.status}" title="${new Date(h.timestamp + 'Z').toLocaleString()} - ${h.latency_ms}ms"></div>`
+                const historyTimeline = [...s.history].reverse().map(h => 
+                    `<div class="history-item" title="${new Date(h.timestamp + (h.timestamp.endsWith('Z') ? '' : 'Z')).toLocaleString()} - ${h.latency_ms}ms">
+                        ${renderSvgDot(h.status, 14)}
+                    </div>`
                 ).join('');
 
                 return `
@@ -293,11 +304,12 @@ export function renderStatusPage(services: any[], incidents: any[]) {
                             <p>${s.url}</p>
                         </div>
                         <div class="status-badge ${latest.status === 'up' ? 'status-up' : 'status-down'}">
+                            ${renderSvgDot(latest.status, 12)}
                             ${latest.status?.toUpperCase()}
                         </div>
                     </div>
                     <div class="history-timeline">
-                        ${historyDots}
+                        ${historyTimeline}
                     </div>
                     <div class="details-panel">
                         <div class="details-grid">
