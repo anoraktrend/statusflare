@@ -33,7 +33,7 @@
 		}
 	],
 	"vars": {
-		"ADMIN_PASSWORD_HASH": "4b86a1f05f13b90345ade5931ad5ed85280641c7dfc0d6adf286c0f2b42f6dc1"
+		"ADMIN_PASSWORD_HASH": "fb4e7d739966c50fbac8579e38cc42dc3d0b9b17c352fd5e87726e397022543f"
 	},
 	"observability": {
 		"enabled": true
