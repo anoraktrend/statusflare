@@ -1,8 +1,10 @@
 import { renderStatusPage, renderAdminPage } from './template';
+// @ts-ignore
+import sanitize from 'sanitize';
 
 interface Env {
   status_db: D1Database;
-  ADMIN_PASSWORD?: string;
+  ADMIN_PASSWORD_HASH?: string;
 }
 
 interface Service {
@@ -38,31 +40,39 @@ async function performHealthCheck(db: D1Database, service: Service) {
     responseSnippet = error.message;
   } finally {
     const latency = Date.now() - start;
+    // Using sanitize.value from the package
+    const sanitizedSnippet = sanitize.value(responseSnippet || '', 'string');
     await db.prepare(
       'INSERT INTO health_checks (service_id, status, status_code, response_snippet, latency_ms) VALUES (?, ?, ?, ?, ?)'
-    ).bind(service.id, status, statusCode, responseSnippet, latency).run();
+    ).bind(service.id, status, statusCode, sanitizedSnippet, latency).run();
   }
 }
 
 async function isAuthenticated(request: Request, env: Env) {
   const cookie = request.headers.get('Cookie');
   if (!cookie) return false;
-  const match = cookie.match(/session=([^;]+)/);
-  return match ? match[1] === env.ADMIN_PASSWORD : false;
+  return cookie.includes('session=true');
+}
+
+async function hashPassword(password: string): Promise<string> {
+  const msgUint8 = new TextEncoder().encode(password);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', msgUint8);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
 export default {
-  async scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext) {
+  async scheduled(controller: ScheduledController, env: Env, ctx: ExecutionContext) {
     const { results } = await env.status_db.prepare('SELECT * FROM services').all<Service>();
     ctx.waitUntil(Promise.all(results.map(service => performHealthCheck(env.status_db, service))));
   },
 
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
+    const path = url.pathname;
 
-    if (url.pathname === '/' || url.pathname === '/api/status') {
+    if (path === '/' || path === '/api/status') {
       const { results: services } = await env.status_db.prepare('SELECT * FROM services').all<Service>();
-      
       const historyQuery = `
         SELECT * FROM (
           SELECT service_id, status, latency_ms, status_code, response_snippet, timestamp,
@@ -71,7 +81,6 @@ export default {
         ) WHERE rn <= 30
       `;
       const { results: history } = await env.status_db.prepare(historyQuery).all();
-
       const servicesWithHistory = services.map(s => {
         const sHistory = history.filter((h: any) => h.service_id === s.id);
         return {
@@ -80,44 +89,51 @@ export default {
           latest: sHistory[0] || { status: 'unknown', timestamp: new Date().toISOString() }
         };
       });
-
       const incidentQuery = `
         SELECT s.name, h.status_code, h.response_snippet, h.timestamp
-        FROM health_checks h
-        JOIN services s ON h.service_id = s.id
-        WHERE h.status = 'down'
-        ORDER BY h.timestamp DESC LIMIT 10
+        FROM health_checks h JOIN services s ON h.service_id = s.id
+        WHERE h.status = 'down' ORDER BY h.timestamp DESC LIMIT 10
       `;
       const { results: incidents } = await env.status_db.prepare(incidentQuery).all();
-      
-      if (url.pathname === '/api/status') {
+      if (path === '/api/status') {
         return new Response(JSON.stringify({ services: servicesWithHistory, incidents }, null, 2), {
           headers: { 'Content-Type': 'application/json' },
         });
       }
-
       return new Response(renderStatusPage(servicesWithHistory, incidents as any[]), {
         headers: { 'Content-Type': 'text/html' },
       });
     }
 
-    if (url.pathname.startsWith('/admin')) {
-      if (url.pathname === '/admin/login' && request.method === 'POST') {
-        const formData = await request.formData();
-        const password = formData.get('password');
-        if (password === env.ADMIN_PASSWORD) {
-          return new Response(null, {
-            status: 302,
-            headers: {
-              'Location': '/admin',
-              'Set-Cookie': `session=${password}; Path=/; HttpOnly; SameSite=Strict`
-            }
-          });
+    if (path.startsWith('/admin')) {
+      const adminPath = path.replace(/\/$/, '');
+
+      if (adminPath === '/admin/login' && request.method === 'POST') {
+        try {
+          const formData = await request.formData();
+          const password = formData.get('password') as string;
+          
+          if (!env.ADMIN_PASSWORD_HASH) {
+            return new Response(renderAdminPage([], 'Server Error: ADMIN_PASSWORD_HASH not configured'), { headers: { 'Content-Type': 'text/html' } });
+          }
+
+          const enteredHash = await hashPassword(password);
+          if (enteredHash === env.ADMIN_PASSWORD_HASH) {
+            return new Response(null, {
+              status: 302,
+              headers: {
+                'Location': '/admin',
+                'Set-Cookie': 'session=true; Path=/; HttpOnly; SameSite=Lax; Max-Age=3600'
+              }
+            });
+          }
+          return new Response(renderAdminPage([], 'Invalid Password'), { headers: { 'Content-Type': 'text/html' } });
+        } catch (e: any) {
+          return new Response(renderAdminPage([], 'Error processing login: ' + e.message), { headers: { 'Content-Type': 'text/html' } });
         }
-        return new Response(renderAdminPage([], 'Invalid Password'), { headers: { 'Content-Type': 'text/html' } });
       }
 
-      if (url.pathname === '/admin/logout') {
+      if (adminPath === '/admin/logout') {
         return new Response(null, {
           status: 302,
           headers: {
@@ -131,17 +147,17 @@ export default {
         return new Response(renderAdminPage([]), { headers: { 'Content-Type': 'text/html' } });
       }
 
-      if (url.pathname === '/admin/add' && request.method === 'POST') {
+      if (adminPath === '/admin/add' && request.method === 'POST') {
         const formData = await request.formData();
-        const name = formData.get('name') as string;
-        const serviceUrl = formData.get('url') as string;
-        const endpoint = formData.get('health_endpoint') as string;
+        const name = sanitize.value(formData.get('name') as string, 'string');
+        const serviceUrl = sanitize.value(formData.get('url') as string, 'string');
+        const endpoint = sanitize.value(formData.get('health_endpoint') as string, 'string');
         await env.status_db.prepare('INSERT INTO services (name, url, health_endpoint) VALUES (?, ?, ?)')
           .bind(name, serviceUrl, endpoint).run();
         return new Response(null, { status: 302, headers: { 'Location': '/admin' } });
       }
 
-      if (url.pathname === '/admin/remove' && request.method === 'POST') {
+      if (adminPath === '/admin/remove' && request.method === 'POST') {
         const formData = await request.formData();
         const id = formData.get('id');
         await env.status_db.prepare('DELETE FROM services WHERE id = ?').bind(id).run();

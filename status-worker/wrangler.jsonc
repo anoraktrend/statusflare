@@ -33,7 +33,7 @@
 		}
 	],
 	"vars": {
-		"ADMIN_PASSWORD": "change-me-later"
+		"ADMIN_PASSWORD_HASH": "4b86a1f05f13b90345ade5931ad5ed85280641c7dfc0d6adf286c0f2b42f6dc1"
 	},
 	"observability": {
 		"enabled": true
