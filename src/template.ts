@@ -23,31 +23,36 @@ const themeScript = `
 const globalStyles = `
     @import url('https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400;1,700&display=swap');
 
-    :root {
-        --up-color: #007c00;
-        --down-color: #f80008;
-        --warn-color: #6c7485;
-        --accent: #3b82f6;
+    *, *::before, *::after {
+        box-sizing: border-box;
     }
 
-    /* Dark Mode (Default) */
+    /* Catppuccin Mocha (Dark) - Default */
     :root, [data-theme='dark'] {
-        --bg-color: #0f172a;
-        --card-bg: #1e293b;
-        --text-main: #f8fafc;
-        --text-muted: #94a3b8;
-        --border-color: #ffffff0d;
-        --code-bg: #000000;
+        --bg-color: #1e1e2e;
+        --card-bg: #181825;
+        --text-main: #cdd6f4;
+        --text-muted: #bac2de;
+        --border-color: #313244;
+        --code-bg: #11111b;
+        --accent: #cba6f7; /* Mauve */
+        --up-color: #a6e3a1; /* Green */
+        --down-color: #f38ba8; /* Red */
+        --warn-color: #f9e2af; /* Yellow */
     }
 
-    /* Light Mode */
+    /* Catppuccin Latte (Light) */
     [data-theme='light'] {
-        --bg-color: #f1f5f9;
-        --card-bg: #ffffff;
-        --text-main: #0f172a;
-        --text-muted: #64748b;
-        --border-color: #e2e8f0;
-        --code-bg: #f8fafc;
+        --bg-color: #eff1f5;
+        --card-bg: #e6e9ef;
+        --text-main: #4c4f69;
+        --text-muted: #6c6f85;
+        --border-color: #ccd0da;
+        --code-bg: #dce0e8;
+        --accent: #8839ef; /* Mauve */
+        --up-color: #40a02b; /* Green */
+        --down-color: #d20f39; /* Red */
+        --warn-color: #df8e1d; /* Yellow */
     }
 
     body {
@@ -57,6 +62,8 @@ const globalStyles = `
         margin: 0;
         display: block;
         min-height: 100vh;
+        width: 100%;
+        overflow-x: hidden;
         transition: background-color 0.3s ease, color 0.3s ease;
     }
 
@@ -80,11 +87,11 @@ const globalStyles = `
 `;
 
 function renderSvgDot(status: string, size: number = 16) {
-    const color = status === 'up' ? '#007c00' : (status === 'down' ? '#f80008' : '#6c7485');
-    return `<svg width="${size}" height="${size}" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg" style="display: inline-block; vertical-align: middle;">
-    <ellipse cx="256" cy="255.99998" rx="250.06845" ry="250.06844" fill="black" stroke="${color}" stroke-width="11.8631" />
-    <ellipse cx="256" cy="255.99998" rx="204.00301" ry="204.00299" fill="black" stroke="${color}" stroke-width="41.994" />
-    <ellipse cx="256" cy="256" rx="158.24641" ry="158.24643" fill="${color}" stroke="${color}" stroke-width="7.50716" />
+    const colorVar = status === 'up' ? 'var(--up-color)' : (status === 'down' ? 'var(--down-color)' : 'var(--warn-color)');
+    return `<svg width="${size}" height="${size}" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg" style="display: inline-block; vertical-align: middle; flex-shrink: 0;">
+    <ellipse cx="256" cy="255.99998" rx="250.06845" ry="250.06844" fill="black" stroke="${colorVar}" stroke-width="11.8631" />
+    <ellipse cx="256" cy="255.99998" rx="204.00301" ry="204.00299" fill="black" stroke="${colorVar}" stroke-width="41.994" />
+    <ellipse cx="256" cy="256" rx="158.24641" ry="158.24643" fill="${colorVar}" stroke="${colorVar}" stroke-width="7.50716" />
   </svg>`;
 }
 
@@ -129,11 +136,11 @@ export function renderAdminPage(services: any[], error?: string, isAuthenticated
     <style>
         ${globalStyles}
         body { padding: 40px 20px; display: flex; justify-content: center; }
-        .container { width: 100%; max-width: 800px; }
+        .container { width: 100%; max-width: 100%; }
         header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 40px; }
         h1 { margin: 0; font-size: 1.5rem; }
         .logout { color: var(--text-muted); text-decoration: none; font-size: 0.875rem; }
-        .card { background: var(--card-bg); padding: 24px; border-radius: 12px; margin-bottom: 24px; border: 1px solid var(--border-color); }
+        .card { background: var(--card-bg); padding: 24px; border-radius: 12px; margin-bottom: 24px; border: 1px solid var(--border-color); width: 100%; overflow-x: auto; }
         h2 { margin-top: 0; font-size: 1.1rem; margin-bottom: 20px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
         .form-group { margin-bottom: 16px; }
         label { display: block; margin-bottom: 8px; font-size: 0.875rem; color: var(--text-muted); }
@@ -158,7 +165,7 @@ export function renderAdminPage(services: any[], error?: string, isAuthenticated
         <div class="card">
             <h2>Add New Service</h2>
             <form method="POST" action="/admin/add">
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px;">
                     <div class="form-group">
                         <label>Service Name</label>
                         <input type="text" name="name" placeholder="e.g. My API" required>
@@ -177,24 +184,26 @@ export function renderAdminPage(services: any[], error?: string, isAuthenticated
         </div>
         <div class="card">
             <h2>Existing Services</h2>
-            <table>
-                <thead><tr><th>Name</th><th>URL</th><th>Endpoint</th><th class="actions">Action</th></tr></thead>
-                <tbody>
-                    ${services.map(s => `
-                        <tr>
-                            <td><strong>${s.name}</strong></td>
-                            <td>${s.url}</td>
-                            <td><code>${s.health_endpoint}</code></td>
-                            <td class="actions">
-                                <form method="POST" action="/admin/remove" style="display:inline">
-                                    <input type="hidden" name="id" value="${s.id}">
-                                    <button type="submit" class="btn btn-danger" onclick="return confirm('Remove this service?')">Remove</button>
-                                </form>
-                            </td>
-                        </tr>
-                    `).join('')}
-                </tbody>
-            </table>
+            <div style="overflow-x: auto;">
+                <table>
+                    <thead><tr><th>Name</th><th>URL</th><th>Endpoint</th><th class="actions">Action</th></tr></thead>
+                    <tbody>
+                        ${services.map(s => `
+                            <tr>
+                                <td><strong>${s.name}</strong></td>
+                                <td>${s.url}</td>
+                                <td><code>${s.health_endpoint}</code></td>
+                                <td class="actions">
+                                    <form method="POST" action="/admin/remove" style="display:inline">
+                                        <input type="hidden" name="id" value="${s.id}">
+                                        <button type="submit" class="btn btn-danger" onclick="return confirm('Remove this service?')">Remove</button>
+                                    </form>
+                                </td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            </div>
         </div>
     </div>
 </body>
@@ -203,7 +212,7 @@ export function renderAdminPage(services: any[], error?: string, isAuthenticated
 
 export function renderStatusPage(services: any[], incidents: any[]) {
     const overallStatus = services.every(s => s.latest.status === 'up') ? 'All Systems Operational' : 'Partial Outage';
-    const overallStatusColor = services.every(s => s.latest.status === 'up') ? '#007c00' : '#f1c40f';
+    const overallStatusColor = services.every(s => s.latest.status === 'up') ? 'var(--up-color)' : 'var(--warn-color)';
     const lastChecked = new Date().toLocaleString();
 
     return `<!DOCTYPE html>
@@ -214,57 +223,64 @@ export function renderStatusPage(services: any[], incidents: any[]) {
     <title>StatusFlare - System Health</title>
     <style>
         ${globalStyles}
-        .container { width: 100%; max-width: 800px; padding: 40px 20px; margin: 0 auto; }
+        .container { width: 100%; padding: 40px 20px; margin: 0; max-width: 100%; }
         header { margin-bottom: 40px; text-align: center; }
-        h1 { font-size: 2.5rem; margin-bottom: 10px; letter-spacing: -0.025em; }
+        h1 { font-size: 2.5rem; margin-bottom: 10px; letter-spacing: -0.025em; color: var(--accent); }
 
         .overall-status {
-            padding: 20px; border-radius: 12px; background: ${overallStatusColor}20; border: 1px solid ${overallStatusColor};
-            color: ${overallStatusColor}; font-weight: 600; font-size: 1.25rem; display: flex; align-items: center; justify-content: center; gap: 12px; margin-bottom: 30px; animation: pulse 2s infinite;
+            padding: 20px; border-radius: 12px; background: color-mix(in srgb, var(--up-color) 15%, transparent); border: 1px solid var(--up-color);
+            color: var(--up-color); font-weight: 600; font-size: 1.25rem; display: flex; align-items: center; justify-content: center; gap: 12px; margin-bottom: 30px; animation: pulse 2s infinite;
+        }
+        
+        [data-theme='dark'] .overall-status {
+             background: color-mix(in srgb, var(--up-color) 10%, transparent);
         }
 
         @keyframes pulse {
-            0% { box-shadow: 0 0 0 0 ${overallStatusColor}40; }
-            70% { box-shadow: 0 0 0 10px ${overallStatusColor}00; }
-            100% { box-shadow: 0 0 0 0 ${overallStatusColor}00; }
+            0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--up-color) 40%, transparent); }
+            70% { box-shadow: 0 0 0 10px transparent; }
+            100% { box-shadow: 0 0 0 0 transparent; }
         }
 
         .section-title { font-size: 1.25rem; margin: 40px 0 20px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.1em; font-weight: 700; }
-        .services-grid { display: flex; flex-direction: column; gap: 16px; }
+        .services-grid { display: flex; flex-direction: column; gap: 16px; width: 100%; }
 
         .service-card {
             background: var(--card-bg); border-radius: 12px; transition: transform 0.2s ease, border-color 0.2s ease; border: 1px solid var(--border-color); cursor: pointer; overflow: hidden;
-            display: block; width: 100%;
+            display: block; width: 100%; max-width: 100%;
         }
         .service-card:hover { border-color: var(--accent); }
-        .service-header { padding: 20px; display: flex; justify-content: space-between; align-items: center; }
+        .service-header { padding: 20px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; }
+        .service-info { flex: 1; min-width: 200px; }
         .service-info h3 { margin: 0; font-size: 1.1rem; }
-        .service-info p { margin: 4px 0 0; font-size: 0.875rem; color: var(--text-muted); }
+        .service-info p { margin: 4px 0 0; font-size: 0.875rem; color: var(--text-muted); word-break: break-all; }
         .latency { font-size: 0.75rem; color: var(--text-muted); margin-left: 8px; }
 
         .status-badge { padding: 6px 12px; border-radius: 20px; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; display: flex; align-items: center; gap: 6px; }
-        .status-up { background: var(--up-color)20; color: var(--up-color); }
-        .status-down { background: var(--down-color)20; color: var(--down-color); }
+        .status-up { background: color-mix(in srgb, var(--up-color) 20%, transparent); color: var(--up-color); }
+        .status-down { background: color-mix(in srgb, var(--down-color) 20%, transparent); color: var(--down-color); }
 
-        .history-timeline { display: flex; gap: 4px; padding: 0 20px 20px; }
-        .history-item { flex: 1; display: flex; align-items: center; justify-content: center; }
-        .history-item svg { width: 100%; height: auto; max-width: 16px; opacity: 0.6; transition: transform 0.2s, opacity 0.2s; }
+        .history-timeline { display: flex; gap: 4px; padding: 0 20px 20px; overflow-x: auto; scrollbar-width: none; -ms-overflow-style: none; }
+        .history-timeline::-webkit-scrollbar { display: none; }
+        .history-item { flex: 0 0 auto; display: flex; align-items: center; justify-content: center; }
+        .history-item svg { width: 14px; height: 14px; opacity: 0.6; transition: transform 0.2s, opacity 0.2s; }
         .history-item:hover svg { transform: scale(1.3); opacity: 1; }
 
         .details-panel { 
-            display: none; padding: 20px; background: rgba(0,0,0,0.05); border-top: 1px solid var(--border-color); font-size: 0.875rem; 
+            display: none; padding: 20px; background: rgba(0,0,0,0.05); border-top: 1px solid var(--border-color); font-size: 0.875rem; width: 100%; overflow-x: auto;
         }
         [data-theme='dark'] .details-panel { background: rgba(0,0,0,0.2); }
         .service-card.expanded .details-panel { display: block; }
-        .details-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 10px; }
+        .details-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-top: 10px; }
         .detail-item { color: var(--text-muted); }
         .detail-item strong { color: var(--text-main); display: block; }
 
-        .incidents-list { background: var(--card-bg); border-radius: 12px; overflow: hidden; border: 1px solid var(--border-color); }
-        .incident-item { padding: 16px 20px; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: flex-start; }
+        .incidents-list { background: var(--card-bg); border-radius: 12px; overflow: hidden; border: 1px solid var(--border-color); width: 100%; }
+        .incident-item { padding: 16px 20px; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 10px; }
         .incident-item:last-child { border-bottom: none; }
+        .incident-details { flex: 1; min-width: 200px; }
         .incident-details h4 { margin: 0; color: var(--down-color); font-size: 1rem; }
-        .incident-details span { font-size: 0.875rem; color: var(--text-muted); }
+        .incident-details span { font-size: 0.875rem; color: var(--text-muted); word-break: break-all; }
         .incident-time { font-size: 0.875rem; color: var(--text-muted); white-space: nowrap; }
 
         footer { margin-top: 50px; text-align: center; color: var(--text-muted); font-size: 0.875rem; padding-bottom: 40px; }
