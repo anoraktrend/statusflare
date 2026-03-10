@@ -14,6 +14,42 @@ interface Service {
   health_endpoint: string;
 }
 
+const SVG_TEMPLATE = `<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg
+   width="{{WIDTH}}"
+   height="{{HEIGHT}}"
+   viewBox="0 0 512 512"
+   version="1.1"
+   xmlns="http://www.w3.org/2000/svg">
+  <g>
+    <ellipse
+       style="fill:#000000;stroke:{{COLOR}};stroke-width:11.8631;stroke-dasharray:none;stroke-opacity:1;paint-order:normal"
+       cx="256"
+       cy="255.99998"
+       rx="250.06845"
+       ry="250.06844" />
+    <circle
+       style="fill:#000000;stroke:{{COLOR}};stroke-width:10.89;stroke-dasharray:none;stroke-opacity:1;paint-order:normal"
+       cx="257"
+       cy="257"
+       r="229.55501" />
+    <ellipse
+       style="fill:{{COLOR}};fill-opacity:1;stroke:{{COLOR}};stroke-width:9.82419;stroke-dasharray:none;stroke-opacity:1;paint-order:normal"
+       cx="256"
+       cy="256.00003"
+       rx="207.08791"
+       ry="207.08792" />
+  </g>
+</svg>`;
+
+function generateStatusSvg(status: string, width: string = '512', height: string = '512') {
+  const color = status === 'up' ? '#007c00' : (status === 'down' ? '#f80008' : '#6c7485');
+  return SVG_TEMPLATE
+    .replace(/{{COLOR}}/g, color)
+    .replace(/{{WIDTH}}/g, width)
+    .replace(/{{HEIGHT}}/g, height);
+}
+
 async function performHealthCheck(db: D1Database, service: Service) {
   const start = Date.now();
   let status: 'up' | 'down' = 'down';
@@ -40,7 +76,6 @@ async function performHealthCheck(db: D1Database, service: Service) {
     responseSnippet = error.message;
   } finally {
     const latency = Date.now() - start;
-    // Using sanitize.value from the package
     const sanitizedSnippet = sanitize.value(responseSnippet || '', 'string');
     await db.prepare(
       'INSERT INTO health_checks (service_id, status, status_code, response_snippet, latency_ms) VALUES (?, ?, ?, ?, ?)'
@@ -70,6 +105,37 @@ export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
     const path = url.pathname;
+
+    // --- Dynamic SVG Status Route ---
+    if (path.startsWith('/badge/') && path.endsWith('.svg')) {
+      const serviceName = decodeURIComponent(path.substring(7, path.length - 4));
+      
+      const width = url.searchParams.get('w') || '512';
+      const height = url.searchParams.get('h') || width; // Default height to width if not provided
+
+      const query = `
+        SELECT s.name, h.status
+        FROM services s
+        LEFT JOIN (
+          SELECT service_id, status
+          FROM health_checks
+          WHERE id IN (SELECT MAX(id) FROM health_checks GROUP BY service_id)
+        ) h ON s.id = h.service_id
+        WHERE LOWER(s.name) = LOWER(?) OR LOWER(s.name) LIKE LOWER(?)
+        LIMIT 1
+      `;
+      
+      const result = await env.status_db.prepare(query).bind(serviceName, `%${serviceName}%`).first() as any;
+      const status = result ? result.status : 'unknown';
+      
+      return new Response(generateStatusSvg(status, width, height), {
+        headers: {
+          'Content-Type': 'image/svg+xml',
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Access-Control-Allow-Origin': '*'
+        }
+      });
+    }
 
     if (path === '/' || path === '/api/status') {
       const { results: services } = await env.status_db.prepare('SELECT * FROM services').all<Service>();
@@ -112,11 +178,9 @@ export default {
         try {
           const formData = await request.formData();
           const password = formData.get('password') as string;
-          
           if (!env.ADMIN_PASSWORD_HASH) {
             return new Response(renderAdminPage([], 'Server Error: ADMIN_PASSWORD_HASH not configured'), { headers: { 'Content-Type': 'text/html' } });
           }
-
           const enteredHash = await hashPassword(password);
           if (enteredHash === env.ADMIN_PASSWORD_HASH) {
             return new Response(null, {
