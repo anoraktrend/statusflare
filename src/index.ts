@@ -209,7 +209,7 @@ export default {
       const tokens = await tokenRes.json() as any;
       
       const secret = new TextEncoder().encode(env.SESSION_SECRET);
-      const sessionJwt = await new jose.SignJWT({ sub: tokens.sub || 'admin' })
+      const sessionJwt = await new jose.SignJWT({ sub: tokens.sub || 'admins' })
         .setProtectedHeader({ alg: 'HS256' })
         .setIssuedAt()
         .setExpirationTime('2h')
