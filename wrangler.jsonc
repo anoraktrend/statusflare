@@ -33,7 +33,10 @@
 		}
 	],
 	"vars": {
-		"ADMIN_PASSWORD_HASH": "fb4e7d739966c50fbac8579e38cc42dc3d0b9b17c352fd5e87726e397022543f"
+		"ADMIN_PASSWORD_HASH": "fb4e7d739966c50fbac8579e38cc42dc3d0b9b17c352fd5e87726e397022543f",
+		"AUTHELIA_ISSUER": "https://auth.helltop.net",
+		"AUTHELIA_CLIENT_ID": "statusflare",
+		"OIDC_REDIRECT_URI": "https://status.helltop.net/admin/callback"
 	},
 	"observability": {
 		"enabled": true

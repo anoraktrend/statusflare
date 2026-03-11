@@ -137,8 +137,10 @@ export function renderAdminPage(services: any[], activeIncidents: any[], error?:
         ${error ? `<div class="error">${error}</div>` : ''}
         <form method="POST" action="/admin/login">
             <input type="password" name="password" placeholder="Admin Password" required>
-            <button type="submit" class="login-btn">Login</button>
+            <button type="submit" class="login-btn">Login with Password</button>
         </form>
+        <div style="margin: 20px 0; text-align: center; color: var(--text-muted); font-size: 0.875rem;">OR</div>
+        <a href="/admin/login/oidc" style="display: block; width: 100%; padding: 12px; border-radius: 6px; border: 1px solid var(--accent); color: var(--accent); text-align: center; text-decoration: none; font-weight: 600;">Login with Authelia (OIDC)</a>
     </div>
 </body>
 </html>`;

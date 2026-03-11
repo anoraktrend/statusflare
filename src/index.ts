@@ -1,10 +1,16 @@
 import { renderStatusPage, renderAdminPage } from './template';
 // @ts-ignore
 import sanitize from 'sanitize';
+import * as jose from 'jose';
 
 interface Env {
   status_db: D1Database;
   ADMIN_PASSWORD_HASH?: string;
+  AUTHELIA_ISSUER: string;
+  AUTHELIA_CLIENT_ID: string;
+  AUTHELIA_CLIENT_SECRET: string;
+  OIDC_REDIRECT_URI: string;
+  SESSION_SECRET: string;
 }
 
 interface Service {
@@ -60,7 +66,16 @@ async function performHealthCheck(db: D1Database, service: Service) {
 async function isAuthenticated(request: Request, env: Env) {
   const cookie = request.headers.get('Cookie');
   if (!cookie) return false;
-  return cookie.includes('session=true');
+  const match = cookie.match(/session=([^;]+)/);
+  if (!match) return false;
+  
+  try {
+    const secret = new TextEncoder().encode(env.SESSION_SECRET);
+    await jose.jwtVerify(match[1], secret);
+    return true;
+  } catch (e) {
+    return false;
+  }
 }
 
 async function hashPassword(password: string): Promise<string> {
@@ -174,21 +189,75 @@ export default {
       });
     }
 
+    if (path === '/admin/callback') {
+      const code = url.searchParams.get('code');
+      if (!code) return new Response('Bad Request', { status: 400 });
+
+      const tokenRes = await fetch(`${env.AUTHELIA_ISSUER}/api/oidc/token`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          grant_type: 'authorization_code',
+          code,
+          redirect_uri: env.OIDC_REDIRECT_URI,
+          client_id: env.AUTHELIA_CLIENT_ID,
+          client_secret: env.AUTHELIA_CLIENT_SECRET,
+        }),
+      });
+
+      if (!tokenRes.ok) return new Response('Token exchange failed', { status: 500 });
+      const tokens = await tokenRes.json() as any;
+      
+      const secret = new TextEncoder().encode(env.SESSION_SECRET);
+      const sessionJwt = await new jose.SignJWT({ sub: tokens.sub || 'admin' })
+        .setProtectedHeader({ alg: 'HS256' })
+        .setIssuedAt()
+        .setExpirationTime('2h')
+        .sign(secret);
+
+      return new Response(null, {
+        status: 302,
+        headers: {
+          'Location': '/admin',
+          'Set-Cookie': `session=${sessionJwt}; Path=/; HttpOnly; SameSite=Lax; Max-Age=7200`
+        }
+      });
+    }
+
     if (path.startsWith('/admin')) {
       const adminPath = path.replace(/\/$/, '');
 
       if (adminPath === '/admin/login' && request.method === 'POST') {
+        // Fallback or legacy password login
         const formData = await request.formData();
         const password = formData.get('password') as string;
-        if (!env.ADMIN_PASSWORD_HASH) return new Response('Server Error', { status: 500 });
-        const enteredHash = await hashPassword(password);
-        if (enteredHash === env.ADMIN_PASSWORD_HASH) {
-          return new Response(null, {
-            status: 302,
-            headers: { 'Location': '/admin', 'Set-Cookie': 'session=true; Path=/; HttpOnly; SameSite=Lax; Max-Age=3600' }
-          });
+        if (env.ADMIN_PASSWORD_HASH) {
+          const enteredHash = await hashPassword(password);
+          if (enteredHash === env.ADMIN_PASSWORD_HASH) {
+            const secret = new TextEncoder().encode(env.SESSION_SECRET);
+            const sessionJwt = await new jose.SignJWT({ sub: 'admin' })
+              .setProtectedHeader({ alg: 'HS256' })
+              .setIssuedAt()
+              .setExpirationTime('1h')
+              .sign(secret);
+            return new Response(null, {
+              status: 302,
+              headers: { 'Location': '/admin', 'Set-Cookie': `session=${sessionJwt}; Path=/; HttpOnly; SameSite=Lax; Max-Age=3600` }
+            });
+          }
         }
         return new Response(renderAdminPage([], []), { headers: { 'Content-Type': 'text/html' } });
+      }
+
+      if (adminPath === '/admin/login/oidc') {
+        const authUrl = `${env.AUTHELIA_ISSUER}/api/oidc/authorization?` + new URLSearchParams({
+          client_id: env.AUTHELIA_CLIENT_ID,
+          response_type: 'code',
+          scope: 'openid profile email',
+          redirect_uri: env.OIDC_REDIRECT_URI,
+          state: crypto.randomUUID(),
+        });
+        return new Response(null, { status: 302, headers: { 'Location': authUrl } });
       }
 
       if (adminPath === '/admin/logout') {
