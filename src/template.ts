@@ -94,6 +94,7 @@ const globalStyles = `
 `;
 
 function escapeHtml(str: string): string {
+  if (!str) return '';
   return str.replace(/[&<>"']/g, (m) => ({
     '&': '&amp;',
     '<': '&lt;',
@@ -110,6 +111,82 @@ function renderSvgDot(status: string, size: number = 16) {
     <ellipse cx="256" cy="255.99998" rx="204.00301" ry="204.00299" fill="black" stroke="${colorVar}" stroke-width="41.994" />
     <ellipse cx="256" cy="256" rx="158.24641" ry="158.24643" fill="${colorVar}" stroke="${colorVar}" stroke-width="7.50716" />
   </svg>`;
+}
+
+function renderParsedData(snippet: string) {
+    try {
+        let data = JSON.parse(snippet);
+        
+        // Unwrap GraphQL "data" wrapper if it's the only top-level key
+        if (data && typeof data === 'object' && !Array.isArray(data) && Object.keys(data).length === 1 && data.data) {
+            data = data.data;
+        }
+
+        const renderValue = (val: any): string => {
+            if (val === null) return '<span style="color: var(--text-muted)">null</span>';
+            
+            // Special handling for Arrays
+            if (Array.isArray(val)) {
+                if (val.length === 0) return '[]';
+                
+                // Uniform Array Detection (array of objects with exact same keys)
+                const first = val[0];
+                if (first && typeof first === 'object' && !Array.isArray(first)) {
+                    const keys = Object.keys(first);
+                    const isUniform = val.every(item => 
+                        item && typeof item === 'object' && !Array.isArray(item) &&
+                        Object.keys(item).length === keys.length &&
+                        keys.every(k => k in item)
+                    );
+                    
+                    if (isUniform) {
+                        return `<div style="overflow-x: auto; margin-top: 8px; width: 100%;">
+                            <table class="parsed-table">
+                                <thead><tr>${keys.map(k => `<th>${escapeHtml(k)}</th>`).join('')}</tr></thead>
+                                <tbody>
+                                    ${val.map(item => `<tr>${keys.map(k => `<td>${renderValue(item[k])}</td>`).join('')}</tr>`).join('')}
+                                </tbody>
+                            </table>
+                        </div>`;
+                    }
+                }
+
+                return `<div class="parsed-list">
+                    ${val.map(item => `<div class="parsed-list-item">${renderValue(item)}</div>`).join('')}
+                </div>`;
+            }
+
+            // Special handling for Objects
+            if (typeof val === 'object') {
+                return `<div class="parsed-object">
+                    ${Object.entries(val).map(([k, v]) => {
+                        const isComplex = v !== null && typeof v === 'object';
+                        const countSuffix = Array.isArray(v) ? ` <small style="color:var(--text-muted)">(${v.length})</small>` : '';
+                        return `
+                        <div class="parsed-item" style="${isComplex ? 'display: block;' : ''}">
+                            <span class="parsed-key">${escapeHtml(k)}${countSuffix}:</span>
+                            <span class="parsed-value">${renderValue(v)}</span>
+                        </div>`;
+                    }).join('')}
+                </div>`;
+            }
+            
+            // Leaf values
+            const s = String(val);
+            const lower = s.toLowerCase();
+            const isHealthWord = ['pass', 'up', 'ok', 'healthy', 'fail', 'down', 'error'].includes(lower);
+            const color = (lower === 'pass' || lower === 'up' || lower === 'ok' || lower === 'healthy') ? 'var(--up-color)' : 'var(--down-color)';
+            
+            if (isHealthWord) {
+                return `<span style="color: ${color}; font-weight: 700; text-transform: uppercase; font-size: 0.75rem;">${escapeHtml(s)}</span>`;
+            }
+            return escapeHtml(s);
+        };
+
+        return `<div class="parsed-content">${renderValue(data)}</div>`;
+    } catch {
+        return `<pre class="raw-snippet">${escapeHtml(snippet.slice(0, 1000))}</pre>`;
+    }
 }
 
 export function renderAdminPage(services: any[], activeIncidents: any[], error?: string, isAuthenticated: boolean = false, oidcConfigured: boolean = true) {
@@ -231,6 +308,20 @@ export function renderAdminPage(services: any[], activeIncidents: any[], error?:
                         <label>Request Body</label>
                         <textarea name="body" rows="2" placeholder='{"query": "{__typename}"}'></textarea>
                     </div>
+                    <div class="form-group" style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                        <div>
+                            <label>Token Provider URL</label>
+                            <input type="url" name="token_url" placeholder="https://api.example.com/auth">
+                        </div>
+                        <div>
+                            <label>Token Response Path</label>
+                            <input type="text" name="token_response_path" placeholder="token">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Token Provider Body (JSON)</label>
+                        <textarea name="token_body" rows="2" placeholder='{"username": "...", "password": "..."}'></textarea>
+                    </div>
                     <button type="submit" class="btn btn-primary">Add Service</button>
                 </form>
             </div>
@@ -316,9 +407,8 @@ export function renderAdminPage(services: any[], activeIncidents: any[], error?:
 }
 
 export function renderStatusPage(services: any[], historicalIncidents: any[], manualIncidents: any[]) {
-    const overallStatus = manualIncidents.length > 0 ? 'outage' : (services.every(s => s.latest.status === 'up') ? 'operational' : 'outage');
     const overallStatusText = manualIncidents.length > 0 ? 'Active System Incident' : (services.every(s => s.latest.status === 'up') ? 'All Systems Operational' : 'Partial System Outage');
-    const overallStatusColor = overallStatus === 'operational' ? 'var(--up-color)' : (manualIncidents.length > 0 ? 'var(--down-color)' : 'var(--warn-color)');
+    const overallStatusColor = manualIncidents.length > 0 ? 'var(--down-color)' : (services.every(s => s.latest.status === 'up') ? 'var(--up-color)' : 'var(--warn-color)');
     const lastChecked = new Date().toLocaleString();
 
     return `<!DOCTYPE html>
@@ -338,10 +428,6 @@ export function renderStatusPage(services: any[], historicalIncidents: any[], ma
             color: ${overallStatusColor}; font-weight: 600; font-size: 1.25rem; display: flex; align-items: center; justify-content: center; gap: 12px; margin-bottom: 30px; animation: pulse 2s infinite;
         }
         
-        [data-theme='dark'] .overall-status {
-             background: color-mix(in srgb, ${overallStatusColor} 10%, transparent);
-        }
-
         @keyframes pulse {
             0% { box-shadow: 0 0 0 0 color-mix(in srgb, ${overallStatusColor} 40%, transparent); }
             70% { box-shadow: 0 0 0 10px transparent; }
@@ -352,45 +438,27 @@ export function renderStatusPage(services: any[], historicalIncidents: any[], ma
         .services-grid { display: flex; flex-direction: column; gap: 16px; width: 100%; }
 
         .service-card {
-            background: var(--card-bg); border-radius: 12px; transition: transform 0.2s ease, border-color 0.2s ease; border: 1px solid var(--border-color); cursor: pointer; overflow: hidden;
-            display: block; width: 100%; max-width: 100%;
+            background: var(--card-bg); border-radius: 12px; transition: border-color 0.2s ease; border: 1px solid var(--border-color); overflow: hidden;
+            display: block; width: 100%;
         }
         .service-card:hover { border-color: var(--accent); }
         .service-header { padding: 20px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; }
         .service-info { flex: 1; min-width: 200px; }
         .service-info h3 { margin: 0; font-size: 1.1rem; }
-        .service-info p { margin: 4px 0 0; font-size: 0.875rem; color: var(--text-muted); word-break: break-all; }
+        .service-info p { margin: 4px 0 0; font-size: 0.875rem; color: var(--text-muted); }
         .latency { font-size: 0.75rem; color: var(--text-muted); margin-left: 8px; }
 
         .status-badge { padding: 6px 12px; border-radius: 20px; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; display: flex; align-items: center; gap: 6px; }
         .status-up { background: color-mix(in srgb, var(--up-color) 20%, transparent); color: var(--up-color); }
         .status-down { background: color-mix(in srgb, var(--down-color) 20%, transparent); color: var(--down-color); }
 
-        .history-timeline { display: flex; gap: 4px; padding: 0 20px 20px; overflow-x: auto; scrollbar-width: none; -ms-overflow-style: none; }
+        .history-timeline { display: flex; gap: 4px; padding: 0 20px 20px; overflow-x: auto; scrollbar-width: none; }
         .history-timeline::-webkit-scrollbar { display: none; }
         .history-item { flex: 0 0 auto; display: flex; align-items: center; justify-content: center; }
         .history-item svg { width: 14px; height: 14px; opacity: 0.6; transition: transform 0.2s, opacity 0.2s; }
         .history-item:hover svg { transform: scale(1.3); opacity: 1; }
 
-        .details-panel { 
-            display: none; padding: 20px; background: rgba(0,0,0,0.05); border-top: 1px solid var(--border-color); font-size: 0.875rem; width: 100%; overflow-x: auto;
-        }
-        [data-theme='dark'] .details-panel { background: rgba(0,0,0,0.2); }
-        .service-card.expanded .details-panel { display: block; }
-        .details-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-top: 10px; }
-        .detail-item { color: var(--text-muted); }
-        .detail-item strong { color: var(--text-main); display: block; }
-
-        .incidents-list { background: var(--card-bg); border-radius: 12px; overflow: hidden; border: 1px solid var(--border-color); width: 100%; }
-        .incident-item { padding: 16px 20px; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 10px; }
-        .incident-item:last-child { border-bottom: none; }
-        .incident-details { flex: 1; min-width: 200px; }
-        .incident-details h4 { margin: 0; color: var(--down-color); font-size: 1rem; }
-        .incident-details span { font-size: 0.875rem; color: var(--text-muted); word-break: break-all; }
-        .incident-time { font-size: 0.875rem; color: var(--text-muted); white-space: nowrap; }
-
         footer { margin-top: 50px; text-align: center; color: var(--text-muted); font-size: 0.875rem; padding-bottom: 40px; }
-        .refresh-info { margin-top: 10px; font-style: italic; }
     </style>
     <script>${themeScript}</script>
     <meta http-equiv="refresh" content="60">
@@ -404,20 +472,18 @@ export function renderStatusPage(services: any[], historicalIncidents: any[], ma
         </header>
 
         <div class="overall-status">
-            ${renderSvgDot(overallStatus === 'operational' ? 'up' : 'down', 24)}
+            ${renderSvgDot(services.every(s => s.latest.status === 'up') ? 'up' : 'down', 24)}
             ${overallStatusText}
         </div>
 
         ${manualIncidents.length > 0 ? `
             <div class="section-title" style="color: var(--down-color)">Active Incidents</div>
-            <div class="incidents-list" style="border-color: var(--down-color); margin-bottom: 40px;">
+            <div class="incidents-list" style="border: 1px solid var(--down-color); border-radius: 12px; overflow: hidden; margin-bottom: 40px;">
                 ${manualIncidents.map(i => `
-                    <div class="incident-item" style="background: color-mix(in srgb, var(--down-color) 5%, transparent)">
-                        <div class="incident-details">
-                            <h4 style="color: var(--down-color)">${escapeHtml(i.title)} ${i.service_name ? `(${escapeHtml(i.service_name)})` : ''}</h4>
-                            <p style="color: var(--text-main); margin: 8px 0;">${escapeHtml(i.message)}</p>
-                        </div>
-                        <div class="incident-time">Started: ${new Date(i.created_at + (i.created_at.endsWith('Z') ? '' : 'Z')).toLocaleString()}</div>
+                    <div class="incident-item" style="padding: 20px; border-bottom: 1px solid var(--border-color); background: color-mix(in srgb, var(--down-color) 5%, transparent)">
+                        <h4 style="color: var(--down-color); margin: 0;">${escapeHtml(i.title)} ${i.service_name ? `(${escapeHtml(i.service_name)})` : ''}</h4>
+                        <p style="color: var(--text-main); margin: 8px 0;">${escapeHtml(i.message)}</p>
+                        <div style="font-size: 0.75rem; color: var(--text-muted)">Started: ${new Date(i.created_at + (i.created_at.endsWith('Z') ? '' : 'Z')).toLocaleString()}</div>
                     </div>
                 `).join('')}
             </div>
@@ -434,7 +500,7 @@ export function renderStatusPage(services: any[], historicalIncidents: any[], ma
                 ).join('');
 
                 return `
-                <div class="service-card" onclick="this.classList.toggle('expanded')">
+                <div class="service-card" onclick="window.location.href='/status/${encodeURIComponent(s.name)}'">
                     <div class="service-header">
                         <div class="service-info">
                             <h3>${escapeHtml(s.name)} <span class="latency">${latest.latency_ms ? latest.latency_ms + 'ms' : ''}</span></h3>
@@ -448,42 +514,173 @@ export function renderStatusPage(services: any[], historicalIncidents: any[], ma
                     <div class="history-timeline">
                         ${historyTimeline}
                     </div>
-                    <div class="details-panel">
-                        <div class="details-grid">
-                            <div class="detail-item"><strong>Last Status Code</strong> ${latest.status_code || 'N/A'}</div>
-                            <div class="detail-item"><strong>Last Checked</strong> ${new Date(latest.timestamp + (latest.timestamp.endsWith('Z') ? '' : 'Z')).toLocaleTimeString()}</div>
-                        </div>
-                        <div class="detail-item" style="margin-top: 12px;">
-                            <strong>Last Response Snippet</strong>
-                            <code style="display:block; background: var(--code-bg); color: var(--text-muted); padding:8px; border-radius:4px; margin-top:4px; font-size:0.75rem; word-break:break-all; border: 1px solid var(--border-color);">
-                                ${latest.response_snippet ? escapeHtml(latest.response_snippet.slice(0, 150)) : 'No response content'}
-                            </code>
-                        </div>
+                    <div style="padding: 0 20px 15px; text-align: right;">
+                        <a href="/status/${encodeURIComponent(s.name)}" style="color: var(--accent); font-size: 0.75rem; text-decoration: none; font-weight: 700;">VIEW DETAILS →</a>
                     </div>
                 </div>`;
             }).join('')}
         </div>
 
         <div class="section-title">Historical Outages</div>
-        <div class="incidents-list">
+        <div class="incidents-list" style="border: 1px solid var(--border-color); border-radius: 12px; overflow: hidden;">
             ${historicalIncidents.length === 0 ? `
-                <div class="incident-item"><div class="incident-details"><span style="color: var(--up-color)">No recent outages reported.</span></div></div>
+                <div class="incident-item" style="padding: 20px; color: var(--up-color); text-align: center;">No recent outages reported.</div>
             ` : historicalIncidents.map(incident => `
-                <div class="incident-item">
-                    <div class="incident-details">
-                        <h4>Outage: ${escapeHtml(incident.name)}</h4>
-                        <span>HTTP ${incident.status_code || 'Error'}: ${incident.response_snippet ? escapeHtml(incident.response_snippet.slice(0, 50)) + '...' : 'No response'}</span>
+                <div class="incident-item" style="padding: 16px 20px; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                        <h4 style="margin: 0; color: var(--down-color)">Outage: ${escapeHtml(incident.name)}</h4>
+                        <span style="font-size: 0.8rem; color: var(--text-muted)">HTTP ${incident.status_code || 'Error'}: ${escapeHtml(incident.response_snippet?.slice(0, 50))}...</span>
                     </div>
-                    <div class="incident-time">
-                        ${new Date(incident.timestamp + (incident.timestamp.endsWith('Z') ? '' : 'Z')).toLocaleString()}
-                    </div>
+                    <div style="font-size: 0.8rem; color: var(--text-muted)">${new Date(incident.timestamp + (incident.timestamp.endsWith('Z') ? '' : 'Z')).toLocaleString()}</div>
                 </div>
             `).join('')}
         </div>
 
         <footer>
-            <div class="refresh-info">Last checked: ${lastChecked} (Auto-refreshes every 60s)</div>
-            <p>Total Services Monitored: ${services.length}</p>
+            <div style="margin-top: 10px; font-style: italic;">Last checked: ${lastChecked}</div>
+            <p>Powered by Cloudflare Workers & D1</p>
+        </footer>
+    </div>
+</body>
+</html>`;
+}
+
+export function renderServiceDetailPage(service: any, history: any[], incidents: any[]) {
+    const uptime = history.length > 0 
+        ? ((history.filter(h => h.status === 'up').length / history.length) * 100).toFixed(2)
+        : '0.00';
+    
+    const latest = history[0] || { status: 'unknown', timestamp: new Date().toISOString() };
+    const lastChecked = new Date(latest.timestamp + (latest.timestamp.endsWith('Z') ? '' : 'Z')).toLocaleString();
+
+    return `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>${escapeHtml(service.name)} - Detailed Status</title>
+    <style>
+        ${globalStyles}
+        .container { width: 100%; padding: 40px 20px; max-width: 1200px; margin: auto; }
+        .back-link { display: inline-block; margin-bottom: 24px; color: var(--text-muted); text-decoration: none; font-size: 0.875rem; }
+        .back-link:hover { color: var(--accent); }
+        
+        .header-card { background: var(--card-bg); border-radius: 12px; padding: 32px; border: 1px solid var(--border-color); margin-bottom: 24px; display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 24px; }
+        .header-main h1 { margin: 0; font-size: 2rem; color: var(--text-main); }
+        .header-main p { margin: 8px 0 0; color: var(--text-muted); }
+        
+        .status-badge { padding: 12px 24px; border-radius: 12px; font-size: 1rem; font-weight: 700; text-transform: uppercase; display: flex; align-items: center; gap: 8px; }
+        .status-up { background: color-mix(in srgb, var(--up-color) 20%, transparent); color: var(--up-color); }
+        .status-down { background: color-mix(in srgb, var(--down-color) 20%, transparent); color: var(--down-color); }
+
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 40px; }
+        .stat-card { background: var(--card-bg); padding: 24px; border-radius: 12px; border: 1px solid var(--border-color); }
+        .stat-label { font-size: 0.75rem; text-transform: uppercase; color: var(--text-muted); font-weight: 700; margin-bottom: 8px; }
+        .stat-value { font-size: 1.5rem; font-weight: 700; color: var(--accent); }
+
+        .health-details-card { background: var(--card-bg); border-radius: 12px; border: 1px solid var(--border-color); padding: 24px; margin-bottom: 40px; }
+        .health-details-card h2 { margin: 0 0 20px; font-size: 1.25rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.1em; }
+        
+        .parsed-content { font-size: 0.9rem; }
+        .parsed-item { margin-bottom: 8px; display: flex; gap: 12px; align-items: flex-start; border-bottom: 1px solid color-mix(in srgb, var(--border-color) 50%, transparent); padding-bottom: 8px; }
+        .parsed-item:last-child { border-bottom: none; }
+        .parsed-key { color: var(--text-muted); font-weight: 700; white-space: nowrap; min-width: 150px; }
+        .parsed-value { color: var(--text-main); word-break: break-all; flex: 1; }
+        
+        .parsed-list { padding-left: 12px; border-left: 1px solid var(--border-color); margin-top: 4px; display: flex; flex-direction: column; gap: 8px; }
+        .parsed-object { padding-left: 12px; border-left: 1px solid var(--border-color); margin-top: 4px; display: flex; flex-direction: column; gap: 4px; width: 100%; }
+
+        .parsed-table { width: 100%; border-collapse: collapse; background: var(--code-bg); border-radius: 8px; overflow: hidden; border: 1px solid var(--border-color); font-size: 0.8rem; }
+        .parsed-table th { text-align: left; background: color-mix(in srgb, var(--accent) 10%, transparent); color: var(--accent); padding: 10px; border-bottom: 1px solid var(--border-color); text-transform: uppercase; font-size: 0.7rem; }
+        .parsed-table td { padding: 10px; border-bottom: 1px solid var(--border-color); color: var(--text-main); }
+        .parsed-table tr:last-child td { border-bottom: none; }
+
+        .raw-snippet { background: var(--code-bg); padding: 16px; border-radius: 8px; font-size: 0.8rem; color: var(--text-muted); margin: 0; white-space: pre-wrap; border: 1px solid var(--border-color); }
+
+        .log-table { width: 100%; border-collapse: collapse; background: var(--card-bg); border-radius: 12px; overflow: hidden; border: 1px solid var(--border-color); }
+        .log-table th { text-align: left; font-size: 0.75rem; text-transform: uppercase; color: var(--text-muted); padding: 16px; border-bottom: 2px solid var(--border-color); }
+        .log-table td { padding: 16px; border-bottom: 1px solid var(--border-color); font-size: 0.875rem; }
+        
+        pre { background: var(--code-bg); padding: 12px; border-radius: 6px; font-size: 0.75rem; border: 1px solid var(--border-color); margin: 0; white-space: pre-wrap; word-break: break-all; color: var(--text-muted); }
+    </style>
+    <script>${themeScript}</script>
+</head>
+<body>
+    <button id="theme-toggle" class="theme-toggle" title="Toggle Theme">🌓</button>
+    <div class="container">
+        <a href="/" class="back-link">← BACK TO DASHBOARD</a>
+        
+        <div class="header-card">
+            <div class="header-main">
+                <h1>${escapeHtml(service.name)}</h1>
+                <p>${escapeHtml(service.url)}${service.health_endpoint}</p>
+            </div>
+            <div class="status-badge ${latest.status === 'up' ? 'status-up' : 'status-down'}">
+                ${renderSvgDot(latest.status, 20)}
+                ${latest.status?.toUpperCase()}
+            </div>
+        </div>
+
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-label">Uptime (Recent)</div>
+                <div class="stat-value">${uptime}%</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Avg. Latency</div>
+                <div class="stat-value">${history.length > 0 ? (history.reduce((a, b) => a + b.latency_ms, 0) / history.length).toFixed(0) : 0}ms</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Last Checked</div>
+                <div class="stat-value" style="font-size: 1rem;">${lastChecked}</div>
+            </div>
+        </div>
+
+        <div class="health-details-card">
+            <h2>Latest Health Details</h2>
+            <div style="margin-bottom: 12px; font-weight: 700; color: var(--accent);">HTTP ${latest.status_code || 'Error'}</div>
+            ${renderParsedData(latest.response_snippet)}
+        </div>
+
+        ${incidents.length > 0 ? `
+            <div class="section-title" style="color: var(--down-color); font-size: 1.25rem; margin-bottom: 20px; font-weight: 700; text-transform: uppercase;">Active Incidents</div>
+            <div class="incidents-list" style="margin-bottom: 40px; border: 1px solid var(--down-color); border-radius: 12px; overflow: hidden;">
+                ${incidents.map(i => `
+                    <div class="incident-item" style="padding: 20px; background: color-mix(in srgb, var(--down-color) 5%, transparent);">
+                        <h4 style="margin: 0; color: var(--down-color)">${escapeHtml(i.title)}</h4>
+                        <p style="margin: 8px 0; color: var(--text-main)">${escapeHtml(i.message)}</p>
+                        <div style="font-size: 0.75rem; color: var(--text-muted)">Started: ${new Date(i.created_at + (i.created_at.endsWith('Z') ? '' : 'Z')).toLocaleString()}</div>
+                    </div>
+                `).join('')}
+            </div>
+        ` : ''}
+
+        <div class="section-title" style="font-size: 1.25rem; margin-bottom: 20px; font-weight: 700; text-transform: uppercase; color: var(--text-muted);">Recent Health Checks</div>
+        <table class="log-table">
+            <thead>
+                <tr>
+                    <th>Time</th>
+                    <th>Status</th>
+                    <th>Latency</th>
+                    <th>Details</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${history.map(h => `
+                    <tr>
+                        <td style="white-space: nowrap;">${new Date(h.timestamp + (h.timestamp.endsWith('Z') ? '' : 'Z')).toLocaleString()}</td>
+                        <td><span style="font-weight: 700; color: ${h.status === 'up' ? 'var(--up-color)' : 'var(--down-color)'}">${h.status.toUpperCase()}</span></td>
+                        <td>${h.latency_ms}ms</td>
+                        <td>
+                            <div style="margin-bottom: 4px; font-size: 0.75rem;"><strong>HTTP ${h.status_code || 'Error'}</strong></div>
+                            <pre>${escapeHtml(h.response_snippet?.slice(0, 150))}</pre>
+                        </td>
+                    </tr>
+                `).join('')}
+            </tbody>
+        </table>
+
+        <footer style="margin-top: 60px; text-align: center; color: var(--text-muted); font-size: 0.875rem; padding-bottom: 40px;">
             <p>Powered by Cloudflare Workers & D1</p>
         </footer>
     </div>

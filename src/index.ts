@@ -1,4 +1,4 @@
-import { renderStatusPage, renderAdminPage } from './template';
+import { renderStatusPage, renderAdminPage, renderServiceDetailPage } from './template';
 // @ts-ignore
 import sanitize from 'sanitize';
 import * as jose from 'jose';
@@ -21,16 +21,40 @@ interface Service {
   method?: string;
   headers_json?: string;
   body?: string;
+  token_url?: string;
+  token_body?: string;
+  token_response_path?: string;
 }
 
-function escapeHtml(str: string): string {
-  return str.replace(/[&<>"']/g, (m) => ({
-    '&': '&amp;',
-    '<': '&lt;',
-    '>': '&gt;',
-    '"': '&quot;',
-    "'": '&#39;'
-  }[m] || m));
+async function getCachedToken(db: D1Database, service: Service): Promise<{token: string | null, error?: string}> {
+  if (!service.token_url || !service.token_body) return {token: null};
+  const cacheKey = `token_${service.id}`;
+  
+  const cached = await db.prepare('SELECT value FROM kv_cache WHERE key = ? AND expires_at > CURRENT_TIMESTAMP').bind(cacheKey).first<{value: string}>();
+  if (cached) return {token: cached.value};
+
+  try {
+    const res = await fetch(service.token_url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'User-Agent': 'StatusFlare/1.0' },
+      body: service.token_body
+    });
+    if (!res.ok) {
+      const errText = await res.text();
+      return {token: null, error: `Auth API ${res.status}: ${errText.slice(0, 50)}`};
+    }
+    const data = await res.json() as any;
+    const token = service.token_response_path ? data[service.token_response_path] : data.token;
+    
+    if (token) {
+      await db.prepare('INSERT OR REPLACE INTO kv_cache (key, value, expires_at) VALUES (?, ?, datetime("now", "+12 hours"))')
+        .bind(cacheKey, token).run();
+      return {token};
+    }
+    return {token: null, error: 'Token not found in response JSON'};
+  } catch (e: any) {
+    return {token: null, error: `Auth Fetch Error: ${e.message}`};
+  }
 }
 
 async function performHealthCheck(db: D1Database, service: Service) {
@@ -44,10 +68,23 @@ async function performHealthCheck(db: D1Database, service: Service) {
     const endpoint = service.health_endpoint.startsWith('/') ? service.health_endpoint : `/${service.health_endpoint}`;
     const fullUrl = `${baseUrl}${endpoint}`;
 
+    let token: string | null = null;
+    if (service.token_url) {
+      const authResult = await getCachedToken(db, service);
+      token = authResult.token;
+      if (!token) {
+        throw new Error(authResult.error || 'Failed to acquire auth token');
+      }
+    }
+
     const headers: Record<string, string> = { 'User-Agent': 'StatusFlare/1.0' };
     if (service.headers_json) {
       try {
-        const customHeaders = JSON.parse(service.headers_json);
+        let headersStr = service.headers_json;
+        if (token) {
+          headersStr = headersStr.replace(/{{TOKEN}}/g, token);
+        }
+        const customHeaders = JSON.parse(headersStr);
         Object.assign(headers, customHeaders);
       } catch (e) {
         console.error(`[HealthCheck] Failed to parse headers for ${service.name}:`, e);
@@ -64,7 +101,15 @@ async function performHealthCheck(db: D1Database, service: Service) {
     status = response.ok ? 'up' : 'down';
     statusCode = response.status;
     const text = await response.text();
-    responseSnippet = text.slice(0, 200);
+    
+    try {
+      // Try to parse as JSON and format it nicely
+      const json = JSON.parse(text);
+      responseSnippet = JSON.stringify(json, null, 2).slice(0, 1000); // Allow larger snippet for JSON
+    } catch {
+      // Fallback to raw text
+      responseSnippet = text.slice(0, 500);
+    }
   } catch (error: any) {
     status = 'down';
     responseSnippet = error.message;
@@ -79,7 +124,6 @@ async function performHealthCheck(db: D1Database, service: Service) {
 
 async function isAuthenticated(request: Request, env: Env) {
   const cookieHeader = request.headers.get('Cookie') || '';
-  console.log('[Auth] Received Cookie Header:', cookieHeader);
   
   const cookies = cookieHeader.split(';').reduce((acc, cookie) => {
     const [name, ...value] = cookie.trim().split('=');
@@ -89,18 +133,13 @@ async function isAuthenticated(request: Request, env: Env) {
   
   const sessionToken = cookies['session'];
   
-  if (!sessionToken) {
-    console.log('[Auth] No "session" token found in cookies. Available:', Object.keys(cookies).join(', '));
-    return false;
-  }
+  if (!sessionToken) return false;
   
   try {
     const secret = new TextEncoder().encode(env.SESSION_SECRET);
-    const { payload } = await jose.jwtVerify(sessionToken, secret);
-    console.log('[Auth] Valid session for:', payload.sub);
+    await jose.jwtVerify(sessionToken, secret);
     return true;
   } catch (e: any) {
-    console.error('[Auth] Session validation failed:', e.message);
     return false;
   }
 }
@@ -171,6 +210,28 @@ export default {
       });
     }
 
+    // --- Service Detail Route ---
+    if (path.startsWith('/status/')) {
+      const serviceName = decodeURIComponent(path.substring(8));
+      const service = await env.status_db.prepare('SELECT * FROM services WHERE name = ?').bind(serviceName).first<Service>();
+      
+      if (!service) {
+        return new Response('Service Not Found', { status: 404 });
+      }
+
+      const history = await env.status_db.prepare(
+        'SELECT * FROM health_checks WHERE service_id = ? ORDER BY timestamp DESC LIMIT 50'
+      ).bind(service.id).all();
+
+      const incidents = await env.status_db.prepare(
+        'SELECT * FROM incidents WHERE service_id = ? AND status = "open" ORDER BY created_at DESC'
+      ).bind(service.id).all();
+
+      return new Response(renderServiceDetailPage(service, history.results, incidents.results), {
+        headers: { 'Content-Type': 'text/html' },
+      });
+    }
+
     if (path === '/' || path === '/api/status') {
       const { results: services } = await env.status_db.prepare('SELECT * FROM services').all<Service>();
       const historyQuery = `
@@ -234,12 +295,10 @@ export default {
 
       if (!tokenRes.ok) {
         const errorText = await tokenRes.text();
-        console.error('[Callback] Token exchange failed:', errorText);
         return new Response(`Token exchange failed: ${errorText}`, { status: 500 });
       }
       
       const tokens = await tokenRes.json() as any;
-      console.log('[Callback] Tokens received successfully');
       
       const secret = new TextEncoder().encode(env.SESSION_SECRET);
       const sessionJwt = await new jose.SignJWT({ sub: tokens.sub || 'admins' })
@@ -262,7 +321,6 @@ export default {
       const oidcConfigured = !!(env.AUTHELIA_ISSUER && env.AUTHELIA_CLIENT_ID);
 
       if (adminPath === '/admin/login' && request.method === 'POST') {
-        // Fallback or legacy password login
         const formData = await request.formData();
         const password = formData.get('password') as string;
         if (env.ADMIN_PASSWORD_HASH) {
@@ -302,7 +360,6 @@ export default {
         return new Response(renderAdminPage([], [], undefined, false, oidcConfigured), { headers: { 'Content-Type': 'text/html' } });
       }
 
-      // --- Admin Protected Actions (Sanitize User Input using 'sanitize' package) ---
       if (adminPath === '/admin/add' && request.method === 'POST') {
         const formData = await request.formData();
         const name = sanitize.value(formData.get('name') as string, 'string');
@@ -311,9 +368,12 @@ export default {
         const method = sanitize.value(formData.get('method') as string, 'string') || 'GET';
         const headersJson = sanitize.value(formData.get('headers_json') as string, 'string') || null;
         const body = sanitize.value(formData.get('body') as string, 'string') || null;
+        const tokenUrl = sanitize.value(formData.get('token_url') as string, 'string') || null;
+        const tokenBody = sanitize.value(formData.get('token_body') as string, 'string') || null;
+        const tokenPath = sanitize.value(formData.get('token_response_path') as string, 'string') || null;
         
-        await env.status_db.prepare('INSERT INTO services (name, url, health_endpoint, method, headers_json, body) VALUES (?, ?, ?, ?, ?, ?)')
-          .bind(name, serviceUrl, endpoint, method, headersJson, body).run();
+        await env.status_db.prepare('INSERT INTO services (name, url, health_endpoint, method, headers_json, body, token_url, token_body, token_response_path) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
+          .bind(name, serviceUrl, endpoint, method, headersJson, body, tokenUrl, tokenBody, tokenPath).run();
         return new Response(null, { status: 302, headers: { 'Location': '/admin' } });
       }
 
@@ -324,7 +384,6 @@ export default {
         return new Response(null, { status: 302, headers: { 'Location': '/admin' } });
       }
 
-      // --- Manual Incident Management (Sanitize User Input using 'sanitize' package) ---
       if (adminPath === '/admin/incidents/create' && request.method === 'POST') {
         const formData = await request.formData();
         const title = sanitize.value(formData.get('title') as string, 'string');
@@ -343,7 +402,6 @@ export default {
         return new Response(null, { status: 302, headers: { 'Location': '/admin' } });
       }
 
-      // --- Admin Dashboard (Authenticated) ---
       const { results: services } = await env.status_db.prepare('SELECT * FROM services').all();
       const { results: activeIncidents } = await env.status_db.prepare('SELECT i.*, s.name as service_name FROM incidents i LEFT JOIN services s ON i.service_id = s.id WHERE i.status = "open"').all();
       

@@ -6,7 +6,17 @@ CREATE TABLE IF NOT EXISTS services (
   health_endpoint TEXT NOT NULL,
   method TEXT DEFAULT 'GET',
   headers_json TEXT,
-  body TEXT
+  body TEXT,
+  token_url TEXT,
+  token_body TEXT,
+  token_response_path TEXT
+);
+
+-- Table for caching tokens (JWTs, etc)
+CREATE TABLE IF NOT EXISTS kv_cache (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL,
+  expires_at DATETIME NOT NULL
 );
 
 -- Table for health check results
