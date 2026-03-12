@@ -13,15 +13,15 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: https://github.com/actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Install pnpm
-        uses: https://github.com/pnpm/action-setup@v4
+        uses: pnpm/action-setup@v4
         with:
           version: 10
 
       - name: Setup Node.js
-        uses: https://github.com/actions/setup-node@v4
+        uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: 'pnpm'
@@ -37,15 +37,15 @@ jobs:
     needs: build
     if: forgejo.ref == 'refs/heads/main'
     steps:
-      - uses: https://github.com/actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Install pnpm
-        uses: https://github.com/pnpm/action-setup@v4
+        uses: pnpm/action-setup@v4
         with:
           version: 10
 
       - name: Setup Node.js
-        uses: https://github.com/actions/setup-node@v4
+        uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: 'pnpm'
@@ -54,7 +54,7 @@ jobs:
         run: pnpm install
 
       - name: Deploy to Cloudflare
-        uses: https://github.com/cloudflare/wrangler-action@v3
+        uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
