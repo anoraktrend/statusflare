@@ -8,7 +8,8 @@
     { 
       "name": "LDAP (lldap)", 
       "url": "https://ldap.helltop.net", 
-      "healthEndpoint": "/" 
+      "healthEndpoint": "/",
+      "method": "GET"
     },
     { 
       "name": "Auth (Authelia)", 
@@ -34,6 +35,11 @@
       "name": "Cloud (Nextcloud)", 
       "url": "https://cloud.helltop.net", 
       "healthEndpoint": "/status.php" 
+    },
+    { 
+      "name": "Vaultwarden", 
+      "url": "https://vault.helltop.net", 
+      "healthEndpoint": "/alive" 
     }
   ]
 }

@@ -18,6 +18,9 @@ interface Service {
   name: string;
   url: string;
   health_endpoint: string;
+  method?: string;
+  headers_json?: string;
+  body?: string;
 }
 
 function escapeHtml(str: string): string {
@@ -41,9 +44,20 @@ async function performHealthCheck(db: D1Database, service: Service) {
     const endpoint = service.health_endpoint.startsWith('/') ? service.health_endpoint : `/${service.health_endpoint}`;
     const fullUrl = `${baseUrl}${endpoint}`;
 
+    const headers: Record<string, string> = { 'User-Agent': 'StatusFlare/1.0' };
+    if (service.headers_json) {
+      try {
+        const customHeaders = JSON.parse(service.headers_json);
+        Object.assign(headers, customHeaders);
+      } catch (e) {
+        console.error(`[HealthCheck] Failed to parse headers for ${service.name}:`, e);
+      }
+    }
+
     const response = await fetch(fullUrl, {
-      method: 'GET',
-      headers: { 'User-Agent': 'StatusFlare/1.0' },
+      method: service.method || 'GET',
+      headers,
+      body: service.body || null,
       signal: AbortSignal.timeout(10000),
     });
 
@@ -64,16 +78,29 @@ async function performHealthCheck(db: D1Database, service: Service) {
 }
 
 async function isAuthenticated(request: Request, env: Env) {
-  const cookie = request.headers.get('Cookie');
-  if (!cookie) return false;
-  const match = cookie.match(/session=([^;]+)/);
-  if (!match) return false;
+  const cookieHeader = request.headers.get('Cookie') || '';
+  console.log('[Auth] Received Cookie Header:', cookieHeader);
+  
+  const cookies = cookieHeader.split(';').reduce((acc, cookie) => {
+    const [name, ...value] = cookie.trim().split('=');
+    if (name) acc[name] = value.join('=');
+    return acc;
+  }, {} as Record<string, string>);
+  
+  const sessionToken = cookies['session'];
+  
+  if (!sessionToken) {
+    console.log('[Auth] No "session" token found in cookies. Available:', Object.keys(cookies).join(', '));
+    return false;
+  }
   
   try {
     const secret = new TextEncoder().encode(env.SESSION_SECRET);
-    await jose.jwtVerify(match[1], secret);
+    const { payload } = await jose.jwtVerify(sessionToken, secret);
+    console.log('[Auth] Valid session for:', payload.sub);
     return true;
-  } catch (e) {
+  } catch (e: any) {
+    console.error('[Auth] Session validation failed:', e.message);
     return false;
   }
 }
@@ -205,8 +232,14 @@ export default {
         }),
       });
 
-      if (!tokenRes.ok) return new Response('Token exchange failed', { status: 500 });
+      if (!tokenRes.ok) {
+        const errorText = await tokenRes.text();
+        console.error('[Callback] Token exchange failed:', errorText);
+        return new Response(`Token exchange failed: ${errorText}`, { status: 500 });
+      }
+      
       const tokens = await tokenRes.json() as any;
+      console.log('[Callback] Tokens received successfully');
       
       const secret = new TextEncoder().encode(env.SESSION_SECRET);
       const sessionJwt = await new jose.SignJWT({ sub: tokens.sub || 'admins' })
@@ -219,13 +252,14 @@ export default {
         status: 302,
         headers: {
           'Location': '/admin',
-          'Set-Cookie': `session=${sessionJwt}; Path=/; HttpOnly; SameSite=Lax; Max-Age=7200`
+          'Set-Cookie': `session=${sessionJwt}; Path=/; HttpOnly; SameSite=Lax; Secure; Max-Age=7200`
         }
       });
     }
 
     if (path.startsWith('/admin')) {
       const adminPath = path.replace(/\/$/, '');
+      const oidcConfigured = !!(env.AUTHELIA_ISSUER && env.AUTHELIA_CLIENT_ID);
 
       if (adminPath === '/admin/login' && request.method === 'POST') {
         // Fallback or legacy password login
@@ -242,11 +276,11 @@ export default {
               .sign(secret);
             return new Response(null, {
               status: 302,
-              headers: { 'Location': '/admin', 'Set-Cookie': `session=${sessionJwt}; Path=/; HttpOnly; SameSite=Lax; Max-Age=3600` }
+              headers: { 'Location': '/admin', 'Set-Cookie': `session=${sessionJwt}; Path=/; HttpOnly; SameSite=Lax; Secure; Max-Age=3600` }
             });
           }
         }
-        return new Response(renderAdminPage([], []), { headers: { 'Content-Type': 'text/html' } });
+        return new Response(renderAdminPage([], [], 'Invalid Password', false, oidcConfigured), { headers: { 'Content-Type': 'text/html' } });
       }
 
       if (adminPath === '/admin/login/oidc') {
@@ -265,7 +299,7 @@ export default {
       }
 
       if (!await isAuthenticated(request, env)) {
-        return new Response(renderAdminPage([], []), { headers: { 'Content-Type': 'text/html' } });
+        return new Response(renderAdminPage([], [], undefined, false, oidcConfigured), { headers: { 'Content-Type': 'text/html' } });
       }
 
       // --- Admin Protected Actions (Sanitize User Input using 'sanitize' package) ---
@@ -274,8 +308,12 @@ export default {
         const name = sanitize.value(formData.get('name') as string, 'string');
         const serviceUrl = sanitize.value(formData.get('url') as string, 'string');
         const endpoint = sanitize.value(formData.get('health_endpoint') as string, 'string');
-        await env.status_db.prepare('INSERT INTO services (name, url, health_endpoint) VALUES (?, ?, ?)')
-          .bind(name, serviceUrl, endpoint).run();
+        const method = sanitize.value(formData.get('method') as string, 'string') || 'GET';
+        const headersJson = sanitize.value(formData.get('headers_json') as string, 'string') || null;
+        const body = sanitize.value(formData.get('body') as string, 'string') || null;
+        
+        await env.status_db.prepare('INSERT INTO services (name, url, health_endpoint, method, headers_json, body) VALUES (?, ?, ?, ?, ?, ?)')
+          .bind(name, serviceUrl, endpoint, method, headersJson, body).run();
         return new Response(null, { status: 302, headers: { 'Location': '/admin' } });
       }
 
@@ -305,10 +343,11 @@ export default {
         return new Response(null, { status: 302, headers: { 'Location': '/admin' } });
       }
 
+      // --- Admin Dashboard (Authenticated) ---
       const { results: services } = await env.status_db.prepare('SELECT * FROM services').all();
       const { results: activeIncidents } = await env.status_db.prepare('SELECT i.*, s.name as service_name FROM incidents i LEFT JOIN services s ON i.service_id = s.id WHERE i.status = "open"').all();
       
-      return new Response(renderAdminPage(services as any[], activeIncidents as any[], undefined, true), {
+      return new Response(renderAdminPage(services as any[], activeIncidents as any[], undefined, true, oidcConfigured), {
         headers: { 'Content-Type': 'text/html' },
       });
     }

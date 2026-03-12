@@ -112,7 +112,7 @@ function renderSvgDot(status: string, size: number = 16) {
   </svg>`;
 }
 
-export function renderAdminPage(services: any[], activeIncidents: any[], error?: string, isAuthenticated: boolean = false) {
+export function renderAdminPage(services: any[], activeIncidents: any[], error?: string, isAuthenticated: boolean = false, oidcConfigured: boolean = true) {
     if (!isAuthenticated) {
         return `<!DOCTYPE html>
 <html lang="en">
@@ -123,10 +123,13 @@ export function renderAdminPage(services: any[], activeIncidents: any[], error?:
     <style>
         ${globalStyles}
         .login-card { background: var(--card-bg); padding: 40px; border-radius: 12px; width: 100%; max-width: 400px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); margin: auto; margin-top: 10vh; }
-        h2 { margin-top: 0; text-align: center; }
+        h2 { margin-top: 0; text-align: center; margin-bottom: 24px; }
         input { width: 100%; padding: 12px; margin: 10px 0; border-radius: 6px; border: 1px solid var(--border-color); background: var(--bg-color); color: var(--text-main); box-sizing: border-box; }
         button.login-btn { width: 100%; padding: 12px; border-radius: 6px; border: none; background: var(--accent); color: white; font-weight: 600; cursor: pointer; }
         .error { color: var(--down-color); font-size: 0.875rem; text-align: center; margin-bottom: 10px; }
+        .oidc-btn { display: block; width: 100%; padding: 14px; border-radius: 6px; background: var(--accent); color: white; text-align: center; text-decoration: none; font-weight: 700; font-size: 1rem; border: none; transition: filter 0.2s; }
+        .oidc-btn:hover { filter: brightness(1.1); }
+        .legacy-toggle { display: block; text-align: center; margin-top: 20px; font-size: 0.75rem; color: var(--text-muted); text-decoration: none; }
     </style>
     <script>${themeScript}</script>
 </head>
@@ -135,12 +138,16 @@ export function renderAdminPage(services: any[], activeIncidents: any[], error?:
     <div class="login-card">
         <h2>Admin Login</h2>
         ${error ? `<div class="error">${error}</div>` : ''}
-        <form method="POST" action="/admin/login">
-            <input type="password" name="password" placeholder="Admin Password" required>
-            <button type="submit" class="login-btn">Login with Password</button>
-        </form>
-        <div style="margin: 20px 0; text-align: center; color: var(--text-muted); font-size: 0.875rem;">OR</div>
-        <a href="/admin/login/oidc" style="display: block; width: 100%; padding: 12px; border-radius: 6px; border: 1px solid var(--accent); color: var(--accent); text-align: center; text-decoration: none; font-weight: 600;">Login with Authelia (OIDC)</a>
+        
+        <a href="/admin/login/oidc" class="oidc-btn">Login with Authelia</a>
+
+        <details style="margin-top: 24px;">
+            <summary class="legacy-toggle" style="cursor: pointer; list-style: none;">Legacy Password Login</summary>
+            <form method="POST" action="/admin/login" style="margin-top: 10px;">
+                <input type="password" name="password" placeholder="Admin Password" required>
+                <button type="submit" class="login-btn">Login</button>
+            </form>
+        </details>
     </div>
 </body>
 </html>`;
@@ -154,26 +161,27 @@ export function renderAdminPage(services: any[], activeIncidents: any[], error?:
     <title>StatusFlare Admin - Manage Services</title>
     <style>
         ${globalStyles}
-        body { padding: 40px 20px; display: flex; justify-content: center; }
-        .container { width: 100%; max-width: 100%; }
+        body { padding: 40px 20px; }
+        .container { width: 100%; max-width: 1200px; margin: 0 auto; }
         header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 40px; }
-        h1 { margin: 0; font-size: 1.5rem; }
-        .logout { color: var(--text-muted); text-decoration: none; font-size: 0.875rem; }
-        .card { background: var(--card-bg); padding: 24px; border-radius: 12px; margin-bottom: 24px; border: 1px solid var(--border-color); width: 100%; overflow-x: auto; }
-        h2 { margin-top: 0; font-size: 1.1rem; margin-bottom: 20px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
+        h1 { margin: 0; font-size: 1.5rem; color: var(--accent); }
+        .logout { color: var(--text-muted); text-decoration: none; font-size: 0.875rem; border: 1px solid var(--border-color); padding: 6px 12px; border-radius: 6px; }
+        .card { background: var(--card-bg); padding: 24px; border-radius: 12px; margin-bottom: 24px; border: 1px solid var(--border-color); overflow: hidden; }
+        h2 { margin-top: 0; font-size: 1rem; margin-bottom: 20px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; font-weight: 700; }
         .form-group { margin-bottom: 16px; }
-        label { display: block; margin-bottom: 8px; font-size: 0.875rem; color: var(--text-muted); }
-        input, textarea, select { width: 100%; padding: 10px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--bg-color); color: var(--text-main); box-sizing: border-box; font-family: inherit; }
+        label { display: block; margin-bottom: 8px; font-size: 0.8rem; color: var(--text-muted); font-weight: 600; }
+        input, textarea, select { width: 100%; padding: 12px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--bg-color); color: var(--text-main); box-sizing: border-box; font-family: inherit; font-size: 0.9rem; }
         
-        .btn { padding: 10px 20px; border-radius: 6px; border: none; font-weight: 600; cursor: pointer; transition: opacity 0.2s; }
+        .btn { padding: 12px 20px; border-radius: 6px; border: none; font-weight: 700; cursor: pointer; transition: opacity 0.2s; font-family: inherit; }
         .btn-primary { background: var(--accent); color: white; }
-        .btn-danger { background: var(--down-color)20; color: var(--down-color); padding: 6px 12px; font-size: 0.75rem; }
-        .btn-success { background: var(--up-color)20; color: var(--up-color); padding: 6px 12px; font-size: 0.75rem; }
+        .btn-danger { background: color-mix(in srgb, var(--down-color) 15%, transparent); color: var(--down-color); border: 1px solid var(--down-color); padding: 6px 12px; font-size: 0.75rem; }
+        .btn-success { background: color-mix(in srgb, var(--up-color) 15%, transparent); color: var(--up-color); border: 1px solid var(--up-color); padding: 6px 12px; font-size: 0.75rem; }
         
-        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-        th { text-align: left; font-size: 0.75rem; text-transform: uppercase; color: var(--text-muted); padding: 12px 8px; border-bottom: 1px solid var(--border-color); }
-        td { padding: 12px 8px; border-bottom: 1px solid var(--border-color); font-size: 0.875rem; }
+        table { width: 100%; border-collapse: collapse; }
+        th { text-align: left; font-size: 0.7rem; text-transform: uppercase; color: var(--text-muted); padding: 16px 12px; border-bottom: 2px solid var(--border-color); }
+        td { padding: 16px 12px; border-bottom: 1px solid var(--border-color); font-size: 0.85rem; }
         .actions { text-align: right; }
+        code { background: var(--code-bg); padding: 2px 6px; border-radius: 4px; font-size: 0.8rem; }
     </style>
     <script>${themeScript}</script>
 </head>
@@ -185,7 +193,7 @@ export function renderAdminPage(services: any[], activeIncidents: any[], error?:
             <a href="/admin/logout" class="logout">Logout</a>
         </header>
 
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 24px;">
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap: 24px; margin-bottom: 24px;">
             <!-- Service Management -->
             <div class="card">
                 <h2>Add New Service</h2>
@@ -194,13 +202,34 @@ export function renderAdminPage(services: any[], activeIncidents: any[], error?:
                         <label>Service Name</label>
                         <input type="text" name="name" placeholder="e.g. My API" required>
                     </div>
-                    <div class="form-group">
-                        <label>Base URL</label>
-                        <input type="url" name="url" placeholder="https://api.example.com" required>
+                    <div class="form-group" style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                        <div>
+                            <label>Base URL</label>
+                            <input type="url" name="url" placeholder="https://api.example.com" required>
+                        </div>
+                        <div>
+                            <label>Health Endpoint</label>
+                            <input type="text" name="health_endpoint" placeholder="/api/health" required>
+                        </div>
+                    </div>
+                    <div class="form-group" style="display: grid; grid-template-columns: 100px 1fr; gap: 12px;">
+                        <div>
+                            <label>Method</label>
+                            <select name="method">
+                                <option value="GET">GET</option>
+                                <option value="POST">POST</option>
+                                <option value="PUT">PUT</option>
+                                <option value="HEAD">HEAD</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label>Headers (JSON)</label>
+                            <input type="text" name="headers_json" placeholder='{"Authorization": "Bearer ..."}'>
+                        </div>
                     </div>
                     <div class="form-group">
-                        <label>Health Endpoint</label>
-                        <input type="text" name="health_endpoint" placeholder="/api/health" required>
+                        <label>Request Body</label>
+                        <textarea name="body" rows="2" placeholder='{"query": "{__typename}"}'></textarea>
                     </div>
                     <button type="submit" class="btn btn-primary">Add Service</button>
                 </form>
@@ -210,20 +239,22 @@ export function renderAdminPage(services: any[], activeIncidents: any[], error?:
             <div class="card">
                 <h2>Report Incident</h2>
                 <form method="POST" action="/admin/incidents/create">
-                    <div class="form-group">
-                        <label>Title</label>
-                        <input type="text" name="title" placeholder="e.g. Database Connectivity Issues" required>
-                    </div>
-                    <div class="form-group">
-                        <label>Affected Service (Optional)</label>
-                        <select name="service_id">
-                            <option value="">System Wide</option>
-                            ${services.map(s => `<option value="${s.id}">${s.name}</option>`).join('')}
-                        </select>
+                    <div class="form-group" style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                        <div>
+                            <label>Title</label>
+                            <input type="text" name="title" placeholder="Database Issues" required>
+                        </div>
+                        <div>
+                            <label>Affected Service</label>
+                            <select name="service_id">
+                                <option value="">System Wide</option>
+                                ${services.map(s => `<option value="${s.id}">${s.name}</option>`).join('')}
+                            </select>
+                        </div>
                     </div>
                     <div class="form-group">
                         <label>Message</label>
-                        <textarea name="message" rows="3" placeholder="Describe the issue..." required></textarea>
+                        <textarea name="message" rows="2" placeholder="Describe the issue..." required></textarea>
                     </div>
                     <button type="submit" class="btn btn-primary" style="background: var(--down-color)">Post Incident</button>
                 </form>
@@ -237,9 +268,9 @@ export function renderAdminPage(services: any[], activeIncidents: any[], error?:
                 <table>
                     <thead><tr><th>Title</th><th>Service</th><th>Started</th><th class="actions">Action</th></tr></thead>
                     <tbody>
-                        ${activeIncidents.length === 0 ? '<tr><td colspan="4" style="text-align:center; padding: 20px;">No active incidents.</td></tr>' : activeIncidents.map(i => `
+                        ${activeIncidents.length === 0 ? '<tr><td colspan="4" style="text-align:center; padding: 40px; color: var(--text-muted);">No active incidents.</td></tr>' : activeIncidents.map(i => `
                             <tr>
-                                <td><strong>${i.title}</strong></td>
+                                <td><strong>${escapeHtml(i.title)}</strong></td>
                                 <td>${i.service_name || 'System Wide'}</td>
                                 <td>${new Date(i.created_at + (i.created_at.endsWith('Z') ? '' : 'Z')).toLocaleString()}</td>
                                 <td class="actions">
@@ -262,11 +293,11 @@ export function renderAdminPage(services: any[], activeIncidents: any[], error?:
                 <table>
                     <thead><tr><th>Name</th><th>URL</th><th>Endpoint</th><th class="actions">Action</th></tr></thead>
                     <tbody>
-                        ${services.map(s => `
+                        ${services.length === 0 ? '<tr><td colspan="4" style="text-align:center; padding: 40px; color: var(--text-muted);">No services configured.</td></tr>' : services.map(s => `
                             <tr>
-                                <td><strong>${s.name}</strong></td>
-                                <td>${s.url}</td>
-                                <td><code>${s.health_endpoint}</code></td>
+                                <td><strong>${escapeHtml(s.name)}</strong></td>
+                                <td>${escapeHtml(s.url)}</td>
+                                <td><code>${escapeHtml(s.health_endpoint)}</code></td>
                                 <td class="actions">
                                     <form method="POST" action="/admin/remove" style="display:inline">
                                         <input type="hidden" name="id" value="${s.id}">

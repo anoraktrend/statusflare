@@ -3,7 +3,10 @@ CREATE TABLE IF NOT EXISTS services (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   name TEXT NOT NULL,
   url TEXT NOT NULL,
-  health_endpoint TEXT NOT NULL
+  health_endpoint TEXT NOT NULL,
+  method TEXT DEFAULT 'GET',
+  headers_json TEXT,
+  body TEXT
 );
 
 -- Table for health check results
