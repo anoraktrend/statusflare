@@ -11,6 +11,10 @@ interface Env {
   AUTHELIA_CLIENT_SECRET: string;
   OIDC_REDIRECT_URI: string;
   SESSION_SECRET: string;
+  MAILGUN_API_KEY?: string;
+  MAILGUN_DOMAIN?: string;
+  MAILGUN_FROM?: string;
+  NOTIFICATION_EMAIL?: string;
 }
 
 interface Service {
@@ -57,11 +61,16 @@ async function getCachedToken(db: D1Database, service: Service): Promise<{token:
   }
 }
 
-async function performHealthCheck(db: D1Database, service: Service) {
+async function performHealthCheck(env: Env, service: Service) {
+  const db = env.status_db;
   const start = Date.now();
   let status: 'up' | 'down' = 'down';
   let statusCode: number | null = null;
   let responseSnippet: string | null = null;
+
+  // Get previous status to detect changes
+  const lastCheck = await db.prepare('SELECT status FROM health_checks WHERE service_id = ? ORDER BY timestamp DESC LIMIT 1').bind(service.id).first<{status: string}>();
+  const previousStatus = lastCheck ? lastCheck.status : 'unknown';
 
   try {
     const baseUrl = service.url.replace(/\/$/, '');
@@ -119,6 +128,13 @@ async function performHealthCheck(db: D1Database, service: Service) {
     await db.prepare(
       'INSERT INTO health_checks (service_id, status, status_code, response_snippet, latency_ms) VALUES (?, ?, ?, ?, ?)'
     ).bind(service.id, status, statusCode, responseSnippet || '', latency).run();
+
+    // Send email alert on status change
+    if (status !== previousStatus && previousStatus !== 'unknown') {
+      const subject = `[StatusFlare] ${service.name} is ${status.toUpperCase()}`;
+      const text = `Service: ${service.name}\nStatus: ${status.toUpperCase()}\nPrevious Status: ${previousStatus.toUpperCase()}\nHTTP Code: ${statusCode}\nTime: ${new Date().toISOString()}\n\nDetails:\n${responseSnippet}`;
+      await sendEmail(env, subject, text);
+    }
   }
 }
 
@@ -151,10 +167,42 @@ async function hashPassword(password: string): Promise<string> {
   return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
+async function sendEmail(env: Env, subject: string, text: string) {
+  if (!env.MAILGUN_API_KEY || !env.MAILGUN_DOMAIN || !env.NOTIFICATION_EMAIL) {
+    console.warn('[Email] Skipping email send: Mailgun configuration missing');
+    return;
+  }
+
+  const from = env.MAILGUN_FROM || `StatusFlare <alerts@${env.MAILGUN_DOMAIN}>`;
+  const formData = new URLSearchParams();
+  formData.append('from', from);
+  formData.append('to', env.NOTIFICATION_EMAIL);
+  formData.append('subject', subject);
+  formData.append('text', text);
+
+  try {
+    const res = await fetch(`https://api.mailgun.net/v3/${env.MAILGUN_DOMAIN}/messages`, {
+      method: 'POST',
+      headers: {
+        'Authorization': 'Basic ' + btoa(`api:${env.MAILGUN_API_KEY}`),
+        'Content-Type': 'application/x-www-form-urlencoded'
+      },
+      body: formData.toString()
+    });
+
+    if (!res.ok) {
+      const errText = await res.text();
+      console.error(`[Email] Mailgun error ${res.status}: ${errText}`);
+    }
+  } catch (e: any) {
+    console.error(`[Email] Fetch error: ${e.message}`);
+  }
+}
+
 export default {
   async scheduled(controller: ScheduledController, env: Env, ctx: ExecutionContext) {
     const { results } = await env.status_db.prepare('SELECT * FROM services').all<Service>();
-    ctx.waitUntil(Promise.all(results.map(service => performHealthCheck(env.status_db, service))));
+    ctx.waitUntil(Promise.all(results.map(service => performHealthCheck(env, service))));
   },
 
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
@@ -204,7 +252,7 @@ export default {
 
     if (path === '/api/check') {
       const { results } = await env.status_db.prepare('SELECT * FROM services').all<Service>();
-      await Promise.all(results.map(service => performHealthCheck(env.status_db, service)));
+      await Promise.all(results.map(service => performHealthCheck(env, service)));
       return new Response('Health check triggered and saved to D1', {
         headers: { 'Access-Control-Allow-Origin': '*' }
       });
@@ -389,16 +437,34 @@ export default {
         const title = sanitize.value(formData.get('title') as string, 'string');
         const message = sanitize.value(formData.get('message') as string, 'string');
         const service_id = formData.get('service_id') || null;
+        
         await env.status_db.prepare('INSERT INTO incidents (title, message, service_id) VALUES (?, ?, ?)')
           .bind(title, message, service_id).run();
+
+        let serviceName = 'System Wide';
+        if (service_id) {
+          const service = await env.status_db.prepare('SELECT name FROM services WHERE id = ?').bind(service_id).first<{name: string}>();
+          if (service) serviceName = service.name;
+        }
+
+        await sendEmail(env, `[StatusFlare] NEW INCIDENT: ${title}`, `Incident: ${title}\nAffected Service: ${serviceName}\nMessage: ${message}\nTime: ${new Date().toISOString()}`);
+        
         return new Response(null, { status: 302, headers: { 'Location': '/admin' } });
       }
 
       if (adminPath === '/admin/incidents/resolve' && request.method === 'POST') {
         const formData = await request.formData();
         const id = formData.get('id');
+
+        const incident = await env.status_db.prepare('SELECT i.*, s.name as service_name FROM incidents i LEFT JOIN services s ON i.service_id = s.id WHERE i.id = ?').bind(id).first<any>();
+        
         await env.status_db.prepare("UPDATE incidents SET status = 'resolved', resolved_at = CURRENT_TIMESTAMP WHERE id = ?")
           .bind(id).run();
+
+        if (incident) {
+          await sendEmail(env, `[StatusFlare] RESOLVED: ${incident.title}`, `Incident "${incident.title}" for ${incident.service_name || 'System Wide'} has been resolved.\nTime: ${new Date().toISOString()}`);
+        }
+
         return new Response(null, { status: 302, headers: { 'Location': '/admin' } });
       }
 
