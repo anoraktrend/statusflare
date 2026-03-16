@@ -3,16 +3,20 @@
 	"version": "0.0.0",
 	"private": true,
 	"scripts": {
-		"deploy": "wrangler deploy",
-		"dev": "wrangler dev",
+		"build:css": "tailwindcss -i src/input.css -o public/tailwind.css",
+		"deploy": "pnpm build:css && wrangler deploy",
+		"dev": "pnpm build:css && wrangler dev",
 		"start": "wrangler dev",
 		"test": "vitest",
 		"cf-typegen": "wrangler types"
 	},
 	"devDependencies": {
+		"@catppuccin/tailwindcss": "^1.0.0",
 		"@cloudflare/vitest-pool-workers": "^0.12.4",
 		"@cloudflare/workers-types": "^4.20260316.1",
+		"@tailwindcss/cli": "^4.2.1",
 		"@types/node": "^25.4.0",
+		"tailwindcss": "^4.2.1",
 		"typescript": "^5.5.2",
 		"vitest": "~3.2.0",
 		"wrangler": "^4.71.0"

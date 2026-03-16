@@ -2,10 +2,11 @@ const themeScript = `
     const storageKey = 'statusflare-theme';
     const getTheme = () => {
         if (localStorage.getItem(storageKey)) return localStorage.getItem(storageKey);
-        return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'mocha' : 'latte';
     };
     const setTheme = (theme) => {
-        document.documentElement.setAttribute('data-theme', theme);
+        document.documentElement.classList.remove('mocha', 'latte');
+        document.documentElement.classList.add(theme);
         localStorage.setItem(storageKey, theme);
     };
     setTheme(getTheme());
@@ -13,84 +14,11 @@ const themeScript = `
         const toggle = document.getElementById('theme-toggle');
         if (toggle) {
             toggle.addEventListener('click', () => {
-                const current = document.documentElement.getAttribute('data-theme');
-                setTheme(current === 'dark' ? 'light' : 'dark');
+                const current = document.documentElement.classList.contains('mocha') ? 'mocha' : 'latte';
+                setTheme(current === 'mocha' ? 'latte' : 'mocha');
             });
         }
     });
-`;
-
-const globalStyles = `
-    @import url('https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400;1,700&display=swap');
-
-    *, *::before, *::after {
-        box-sizing: border-box;
-    }
-
-    :root {
-        --up-color: #007c00;
-        --down-color: #f80008;
-        --warn-color: #6c7485;
-        --accent: #cba6f7;
-    }
-
-    /* Catppuccin Mocha (Dark) - Default */
-    :root, [data-theme='dark'] {
-        --bg-color: #1e1e2e;
-        --card-bg: #181825;
-        --text-main: #cdd6f4;
-        --text-muted: #bac2de;
-        --border-color: #313244;
-        --code-bg: #11111b;
-        --accent: #cba6f7; /* Mauve */
-        --up-color: #a6e3a1; /* Green */
-        --down-color: #f38ba8; /* Red */
-        --warn-color: #f9e2af; /* Yellow */
-    }
-
-    /* Catppuccin Latte (Light) */
-    [data-theme='light'] {
-        --bg-color: #eff1f5;
-        --card-bg: #e6e9ef;
-        --text-main: #4c4f69;
-        --text-muted: #6c6f85;
-        --border-color: #ccd0da;
-        --code-bg: #dce0e8;
-        --accent: #8839ef; /* Mauve */
-        --up-color: #40a02b; /* Green */
-        --down-color: #d20f39; /* Red */
-        --warn-color: #df8e1d; /* Yellow */
-    }
-
-    body {
-        font-family: 'Space Mono', monospace;
-        background-color: var(--bg-color);
-        color: var(--text-main);
-        margin: 0;
-        display: block;
-        min-height: 100vh;
-        width: 100%;
-        overflow-x: hidden;
-        transition: background-color 0.3s ease, color 0.3s ease;
-    }
-
-    .theme-toggle {
-        position: fixed;
-        top: 20px;
-        right: 20px;
-        background: var(--card-bg);
-        border: 1px solid var(--border-color);
-        color: var(--text-main);
-        width: 40px;
-        height: 40px;
-        border-radius: 50%;
-        cursor: pointer;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
-        z-index: 100;
-    }
 `;
 
 function escapeHtml(str: string): string {
@@ -105,11 +33,11 @@ function escapeHtml(str: string): string {
 }
 
 function renderSvgDot(status: string, size: number = 16) {
-    const colorVar = status === 'up' ? 'var(--up-color)' : (status === 'down' ? 'var(--down-color)' : 'var(--warn-color)');
-    return `<svg width="${size}" height="${size}" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg" style="display: inline-block; vertical-align: middle; flex-shrink: 0;">
-    <ellipse cx="256" cy="255.99998" rx="250.06845" ry="250.06844" fill="black" stroke="${colorVar}" stroke-width="11.8631" />
-    <ellipse cx="256" cy="255.99998" rx="204.00301" ry="204.00299" fill="black" stroke="${colorVar}" stroke-width="41.994" />
-    <ellipse cx="256" cy="256" rx="158.24641" ry="158.24643" fill="${colorVar}" stroke="${colorVar}" stroke-width="7.50716" />
+    const colorClass = status === 'up' ? 'text-ctp-green' : (status === 'down' ? 'text-ctp-red' : 'text-ctp-yellow');
+    return `<svg width="${size}" height="${size}" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg" class="${colorClass} inline-block align-middle shrink-0">
+    <ellipse cx="256" cy="255.99998" rx="250.06845" ry="250.06844" fill="black" stroke="currentColor" stroke-width="11.8631" />
+    <ellipse cx="256" cy="255.99998" rx="204.00301" ry="204.00299" fill="black" stroke="currentColor" stroke-width="41.994" />
+    <ellipse cx="256" cy="256" rx="158.24641" ry="158.24643" fill="currentColor" stroke="currentColor" stroke-width="7.50716" />
   </svg>`;
 }
 
@@ -117,19 +45,16 @@ function renderParsedData(snippet: string) {
     try {
         let data = JSON.parse(snippet);
         
-        // Unwrap GraphQL "data" wrapper if it's the only top-level key
         if (data && typeof data === 'object' && !Array.isArray(data) && Object.keys(data).length === 1 && data.data) {
             data = data.data;
         }
 
         const renderValue = (val: any): string => {
-            if (val === null) return '<span style="color: var(--text-muted)">null</span>';
+            if (val === null) return '<span class="text-ctp-overlay0">null</span>';
             
-            // Special handling for Arrays
             if (Array.isArray(val)) {
                 if (val.length === 0) return '[]';
                 
-                // Uniform Array Detection (array of objects with exact same keys)
                 const first = val[0];
                 if (first && typeof first === 'object' && !Array.isArray(first)) {
                     const keys = Object.keys(first);
@@ -140,89 +65,81 @@ function renderParsedData(snippet: string) {
                     );
                     
                     if (isUniform) {
-                        return `<div style="overflow-x: auto; margin-top: 8px; width: 100%;">
-                            <table class="parsed-table">
-                                <thead><tr>${keys.map(k => `<th>${escapeHtml(k)}</th>`).join('')}</tr></thead>
+                        return `<div class="overflow-x-auto mt-2 w-full">
+                            <table class="w-full border-collapse bg-ctp-crust rounded-lg overflow-hidden border border-ctp-surface0 text-xs">
+                                <thead>
+                                    <tr class="bg-ctp-mauve/10 text-ctp-mauve">
+                                        ${keys.map(k => `<th class="text-left p-2.5 border-b border-ctp-surface0 uppercase text-[0.7rem]">${escapeHtml(k)}</th>`).join('')}
+                                    </tr>
+                                </thead>
                                 <tbody>
-                                    ${val.map(item => `<tr>${keys.map(k => `<td>${renderValue(item[k])}</td>`).join('')}</tr>`).join('')}
+                                    ${val.map(item => `<tr>${keys.map(k => `<td class="p-2.5 border-b border-ctp-surface0 text-ctp-text last:border-b-0">${renderValue(item[k])}</td>`).join('')}</tr>`).join('')}
                                 </tbody>
                             </table>
                         </div>`;
                     }
                 }
 
-                return `<div class="parsed-list">
+                return `<div class="pl-3 border-l border-ctp-surface0 mt-1 flex flex-col gap-2">
                     ${val.map(item => `<div class="parsed-list-item">${renderValue(item)}</div>`).join('')}
                 </div>`;
             }
 
-            // Special handling for Objects
             if (typeof val === 'object') {
-                return `<div class="parsed-object">
+                return `<div class="pl-3 border-l border-ctp-surface0 mt-1 flex flex-col gap-1 w-full">
                     ${Object.entries(val).map(([k, v]) => {
                         const isComplex = v !== null && typeof v === 'object';
-                        const countSuffix = Array.isArray(v) ? ` <small style="color:var(--text-muted)">(${v.length})</small>` : '';
+                        const countSuffix = Array.isArray(v) ? ` <small class="text-ctp-overlay0">(${v.length})</small>` : '';
                         return `
-                        <div class="parsed-item" style="${isComplex ? 'display: block;' : ''}">
-                            <span class="parsed-key">${escapeHtml(k)}${countSuffix}:</span>
-                            <span class="parsed-value">${renderValue(v)}</span>
+                        <div class="mb-2 flex gap-3 items-start border-b border-ctp-surface0/50 pb-2 last:border-b-0 ${isComplex ? 'block' : ''}">
+                            <span class="text-ctp-overlay0 font-bold whitespace-nowrap min-w-[150px]">${escapeHtml(k)}${countSuffix}:</span>
+                            <span class="text-ctp-text break-all flex-1">${renderValue(v)}</span>
                         </div>`;
                     }).join('')}
                 </div>`;
             }
             
-            // Leaf values
             const s = String(val);
             const lower = s.toLowerCase();
             const isHealthWord = ['pass', 'up', 'ok', 'healthy', 'fail', 'down', 'error'].includes(lower);
-            const color = (lower === 'pass' || lower === 'up' || lower === 'ok' || lower === 'healthy') ? 'var(--up-color)' : 'var(--down-color)';
+            const colorClass = (lower === 'pass' || lower === 'up' || lower === 'ok' || lower === 'healthy') ? 'text-ctp-green' : 'text-ctp-red';
             
             if (isHealthWord) {
-                return `<span style="color: ${color}; font-weight: 700; text-transform: uppercase; font-size: 0.75rem;">${escapeHtml(s)}</span>`;
+                return `<span class="${colorClass} font-bold uppercase text-[0.75rem]">${escapeHtml(s)}</span>`;
             }
             return escapeHtml(s);
         };
 
-        return `<div class="parsed-content">${renderValue(data)}</div>`;
+        return `<div class="text-[0.9rem]">${renderValue(data)}</div>`;
     } catch {
-        return `<pre class="raw-snippet">${escapeHtml(snippet.slice(0, 1000))}</pre>`;
+        return `<pre class="bg-ctp-crust p-4 rounded-lg text-xs text-ctp-overlay0 m-0 whitespace-pre-wrap border border-ctp-surface0">${escapeHtml(snippet.slice(0, 1000))}</pre>`;
     }
 }
 
 export function renderAdminPage(services: any[], activeIncidents: any[], error?: string, isAuthenticated: boolean = false, oidcConfigured: boolean = true) {
     if (!isAuthenticated) {
         return `<!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="mocha">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>StatusFlare Admin - Login</title>
-    <style>
-        ${globalStyles}
-        .login-card { background: var(--card-bg); padding: 40px; border-radius: 12px; width: 100%; max-width: 400px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); margin: auto; margin-top: 10vh; }
-        h2 { margin-top: 0; text-align: center; margin-bottom: 24px; }
-        input { width: 100%; padding: 12px; margin: 10px 0; border-radius: 6px; border: 1px solid var(--border-color); background: var(--bg-color); color: var(--text-main); box-sizing: border-box; }
-        button.login-btn { width: 100%; padding: 12px; border-radius: 6px; border: none; background: var(--accent); color: white; font-weight: 600; cursor: pointer; }
-        .error { color: var(--down-color); font-size: 0.875rem; text-align: center; margin-bottom: 10px; }
-        .oidc-btn { display: block; width: 100%; padding: 14px; border-radius: 6px; background: var(--accent); color: white; text-align: center; text-decoration: none; font-weight: 700; font-size: 1rem; border: none; transition: filter 0.2s; }
-        .oidc-btn:hover { filter: brightness(1.1); }
-        .legacy-toggle { display: block; text-align: center; margin-top: 20px; font-size: 0.75rem; color: var(--text-muted); text-decoration: none; }
-    </style>
+    <link rel="stylesheet" href="/tailwind.css">
     <script>${themeScript}</script>
 </head>
-<body>
-    <button id="theme-toggle" class="theme-toggle" title="Toggle Theme">🌓</button>
-    <div class="login-card">
-        <h2>Admin Login</h2>
-        ${error ? `<div class="error">${error}</div>` : ''}
+<body class="bg-ctp-base text-ctp-text font-mono min-h-screen w-full flex items-center justify-center p-4">
+    <button id="theme-toggle" class="fixed top-5 right-5 bg-ctp-mantle border border-ctp-surface0 text-ctp-text w-10 h-10 rounded-full cursor-pointer flex items-center justify-center shadow-lg z-50 hover:bg-ctp-surface0 transition-colors" title="Toggle Theme">🌓</button>
+    <div class="bg-ctp-mantle p-10 rounded-xl w-full max-w-md shadow-xl border border-ctp-surface0">
+        <h2 class="mt-0 text-center mb-6 text-2xl font-bold">Admin Login</h2>
+        ${error ? `<div class="text-ctp-red text-sm text-center mb-4">${error}</div>` : ''}
         
-        <a href="/admin/login/oidc" class="oidc-btn">Login with Authelia</a>
+        <a href="/admin/login/oidc" class="block w-full py-3.5 px-4 rounded-lg bg-ctp-mauve text-ctp-crust text-center no-underline font-bold text-lg border-none transition-transform hover:scale-[1.02] active:scale-[0.98]">Login with Authelia</a>
 
-        <details style="margin-top: 24px;">
-            <summary class="legacy-toggle" style="cursor: pointer; list-style: none;">Legacy Password Login</summary>
-            <form method="POST" action="/admin/login" style="margin-top: 10px;">
-                <input type="password" name="password" placeholder="Admin Password" required>
-                <button type="submit" class="login-btn">Login</button>
+        <details class="mt-6">
+            <summary class="block text-center mt-5 text-[0.75rem] text-ctp-overlay0 cursor-pointer list-none hover:text-ctp-subtext0 transition-colors">Legacy Password Login</summary>
+            <form method="POST" action="/admin/login" class="mt-4">
+                <input type="password" name="password" placeholder="Admin Password" class="w-full p-3 my-2.5 rounded-lg border border-ctp-surface0 bg-ctp-base text-ctp-text box-border focus:ring-2 focus:ring-ctp-mauve focus:outline-none" required>
+                <button type="submit" class="w-full p-3 rounded-lg border-none bg-ctp-mauve text-ctp-crust font-bold cursor-pointer hover:opacity-90 transition-opacity">Login</button>
             </form>
         </details>
     </div>
@@ -231,68 +148,45 @@ export function renderAdminPage(services: any[], activeIncidents: any[], error?:
     }
 
     return `<!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="mocha">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>StatusFlare Admin - Manage Services</title>
-    <style>
-        ${globalStyles}
-        body { padding: 40px 20px; }
-        .container { width: 100%; max-width: 1200px; margin: 0 auto; }
-        header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 40px; }
-        h1 { margin: 0; font-size: 1.5rem; color: var(--accent); }
-        .logout { color: var(--text-muted); text-decoration: none; font-size: 0.875rem; border: 1px solid var(--border-color); padding: 6px 12px; border-radius: 6px; }
-        .card { background: var(--card-bg); padding: 24px; border-radius: 12px; margin-bottom: 24px; border: 1px solid var(--border-color); overflow: hidden; }
-        h2 { margin-top: 0; font-size: 1rem; margin-bottom: 20px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; font-weight: 700; }
-        .form-group { margin-bottom: 16px; }
-        label { display: block; margin-bottom: 8px; font-size: 0.8rem; color: var(--text-muted); font-weight: 600; }
-        input, textarea, select { width: 100%; padding: 12px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--bg-color); color: var(--text-main); box-sizing: border-box; font-family: inherit; font-size: 0.9rem; }
-        
-        .btn { padding: 12px 20px; border-radius: 6px; border: none; font-weight: 700; cursor: pointer; transition: opacity 0.2s; font-family: inherit; }
-        .btn-primary { background: var(--accent); color: white; }
-        .btn-danger { background: color-mix(in srgb, var(--down-color) 15%, transparent); color: var(--down-color); border: 1px solid var(--down-color); padding: 6px 12px; font-size: 0.75rem; }
-        .btn-success { background: color-mix(in srgb, var(--up-color) 15%, transparent); color: var(--up-color); border: 1px solid var(--up-color); padding: 6px 12px; font-size: 0.75rem; }
-        
-        table { width: 100%; border-collapse: collapse; }
-        th { text-align: left; font-size: 0.7rem; text-transform: uppercase; color: var(--text-muted); padding: 16px 12px; border-bottom: 2px solid var(--border-color); }
-        td { padding: 16px 12px; border-bottom: 1px solid var(--border-color); font-size: 0.85rem; }
-        .actions { text-align: right; }
-        code { background: var(--code-bg); padding: 2px 6px; border-radius: 4px; font-size: 0.8rem; }
-    </style>
+    <link rel="stylesheet" href="/tailwind.css">
     <script>${themeScript}</script>
 </head>
-<body>
-    <button id="theme-toggle" class="theme-toggle" title="Toggle Theme">🌓</button>
-    <div class="container">
-        <header>
-            <h1>StatusFlare Admin</h1>
-            <a href="/admin/logout" class="logout">Logout</a>
+<body class="bg-ctp-base text-ctp-text font-mono min-h-screen p-10">
+    <button id="theme-toggle" class="fixed top-5 right-5 bg-ctp-mantle border border-ctp-surface0 text-ctp-text w-10 h-10 rounded-full cursor-pointer flex items-center justify-center shadow-lg z-50 hover:bg-ctp-surface0 transition-colors" title="Toggle Theme">🌓</button>
+    <div class="max-w-7xl mx-auto">
+        <header class="flex justify-between items-center mb-10">
+            <h1 class="m-0 text-2xl font-bold text-ctp-mauve">StatusFlare Admin</h1>
+            <a href="/admin/logout" class="text-ctp-overlay0 no-underline text-sm border border-ctp-surface0 px-3 py-1.5 rounded-lg hover:bg-ctp-surface0 transition-colors">Logout</a>
         </header>
 
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap: 24px; margin-bottom: 24px;">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
             <!-- Service Management -->
-            <div class="card">
-                <h2>Add New Service</h2>
-                <form method="POST" action="/admin/add">
-                    <div class="form-group">
-                        <label>Service Name</label>
-                        <input type="text" name="name" placeholder="e.g. My API" required>
+            <div class="bg-ctp-mantle p-6 rounded-xl border border-ctp-surface0 shadow-lg">
+                <h2 class="mt-0 text-base mb-5 text-ctp-overlay0 uppercase tracking-widest font-bold">Add New Service</h2>
+                <form method="POST" action="/admin/add" class="space-y-4">
+                    <div>
+                        <label class="block mb-2 text-xs text-ctp-overlay0 font-semibold">Service Name</label>
+                        <input type="text" name="name" placeholder="e.g. My API" class="w-full p-3 rounded-lg border border-ctp-surface0 bg-ctp-base text-ctp-text text-sm focus:ring-2 focus:ring-ctp-mauve focus:outline-none" required>
                     </div>
-                    <div class="form-group" style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                    <div class="grid grid-cols-2 gap-3">
                         <div>
-                            <label>Base URL</label>
-                            <input type="url" name="url" placeholder="https://api.example.com" required>
+                            <label class="block mb-2 text-xs text-ctp-overlay0 font-semibold">Base URL</label>
+                            <input type="url" name="url" placeholder="https://api.example.com" class="w-full p-3 rounded-lg border border-ctp-surface0 bg-ctp-base text-ctp-text text-sm focus:ring-2 focus:ring-ctp-mauve focus:outline-none" required>
                         </div>
                         <div>
-                            <label>Health Endpoint</label>
-                            <input type="text" name="health_endpoint" placeholder="/api/health" required>
+                            <label class="block mb-2 text-xs text-ctp-overlay0 font-semibold">Health Endpoint</label>
+                            <input type="text" name="health_endpoint" placeholder="/api/health" class="w-full p-3 rounded-lg border border-ctp-surface0 bg-ctp-base text-ctp-text text-sm focus:ring-2 focus:ring-ctp-mauve focus:outline-none" required>
                         </div>
                     </div>
-                    <div class="form-group" style="display: grid; grid-template-columns: 100px 1fr; gap: 12px;">
+                    <div class="grid grid-cols-[100px_1fr] gap-3">
                         <div>
-                            <label>Method</label>
-                            <select name="method">
+                            <label class="block mb-2 text-xs text-ctp-overlay0 font-semibold">Method</label>
+                            <select name="method" class="w-full p-3 rounded-lg border border-ctp-surface0 bg-ctp-base text-ctp-text text-sm focus:ring-2 focus:ring-ctp-mauve focus:outline-none">
                                 <option value="GET">GET</option>
                                 <option value="POST">POST</option>
                                 <option value="PUT">PUT</option>
@@ -300,74 +194,81 @@ export function renderAdminPage(services: any[], activeIncidents: any[], error?:
                             </select>
                         </div>
                         <div>
-                            <label>Headers (JSON)</label>
-                            <input type="text" name="headers_json" placeholder='{"Authorization": "Bearer ..."}'>
+                            <label class="block mb-2 text-xs text-ctp-overlay0 font-semibold">Headers (JSON)</label>
+                            <input type="text" name="headers_json" placeholder='{"Authorization": "Bearer ..."}' class="w-full p-3 rounded-lg border border-ctp-surface0 bg-ctp-base text-ctp-text text-sm focus:ring-2 focus:ring-ctp-mauve focus:outline-none">
                         </div>
                     </div>
-                    <div class="form-group">
-                        <label>Request Body</label>
-                        <textarea name="body" rows="2" placeholder='{"query": "{__typename}"}'></textarea>
+                    <div>
+                        <label class="block mb-2 text-xs text-ctp-overlay0 font-semibold">Request Body</label>
+                        <textarea name="body" rows="2" placeholder='{"query": "{__typename}"}' class="w-full p-3 rounded-lg border border-ctp-surface0 bg-ctp-base text-ctp-text text-sm focus:ring-2 focus:ring-ctp-mauve focus:outline-none"></textarea>
                     </div>
-                    <div class="form-group" style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                    <div class="grid grid-cols-2 gap-3">
                         <div>
-                            <label>Token Provider URL</label>
-                            <input type="url" name="token_url" placeholder="https://api.example.com/auth">
+                            <label class="block mb-2 text-xs text-ctp-overlay0 font-semibold">Token Provider URL</label>
+                            <input type="url" name="token_url" placeholder="https://api.example.com/auth" class="w-full p-3 rounded-lg border border-ctp-surface0 bg-ctp-base text-ctp-text text-sm focus:ring-2 focus:ring-ctp-mauve focus:outline-none">
                         </div>
                         <div>
-                            <label>Token Response Path</label>
-                            <input type="text" name="token_response_path" placeholder="token">
+                            <label class="block mb-2 text-xs text-ctp-overlay0 font-semibold">Token Response Path</label>
+                            <input type="text" name="token_response_path" placeholder="token" class="w-full p-3 rounded-lg border border-ctp-surface0 bg-ctp-base text-ctp-text text-sm focus:ring-2 focus:ring-ctp-mauve focus:outline-none">
                         </div>
                     </div>
-                    <div class="form-group">
-                        <label>Token Provider Body (JSON)</label>
-                        <textarea name="token_body" rows="2" placeholder='{"username": "...", "password": "..."}'></textarea>
+                    <div>
+                        <label class="block mb-2 text-xs text-ctp-overlay0 font-semibold">Token Provider Body (JSON)</label>
+                        <textarea name="token_body" rows="2" placeholder='{"username": "...", "password": "..."}' class="w-full p-3 rounded-lg border border-ctp-surface0 bg-ctp-base text-ctp-text text-sm focus:ring-2 focus:ring-ctp-mauve focus:outline-none"></textarea>
                     </div>
-                    <button type="submit" class="btn btn-primary">Add Service</button>
+                    <button type="submit" class="w-full py-3 px-5 rounded-lg border-none bg-ctp-mauve text-ctp-crust font-bold cursor-pointer hover:opacity-90 transition-opacity">Add Service</button>
                 </form>
             </div>
 
             <!-- Incident Management -->
-            <div class="card">
-                <h2>Report Incident</h2>
-                <form method="POST" action="/admin/incidents/create">
-                    <div class="form-group" style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+            <div class="bg-ctp-mantle p-6 rounded-xl border border-ctp-surface0 shadow-lg">
+                <h2 class="mt-0 text-base mb-5 text-ctp-overlay0 uppercase tracking-widest font-bold">Report Incident</h2>
+                <form method="POST" action="/admin/incidents/create" class="space-y-4">
+                    <div class="grid grid-cols-2 gap-3">
                         <div>
-                            <label>Title</label>
-                            <input type="text" name="title" placeholder="Database Issues" required>
+                            <label class="block mb-2 text-xs text-ctp-overlay0 font-semibold">Title</label>
+                            <input type="text" name="title" placeholder="Database Issues" class="w-full p-3 rounded-lg border border-ctp-surface0 bg-ctp-base text-ctp-text text-sm focus:ring-2 focus:ring-ctp-mauve focus:outline-none" required>
                         </div>
                         <div>
-                            <label>Affected Service</label>
-                            <select name="service_id">
+                            <label class="block mb-2 text-xs text-ctp-overlay0 font-semibold">Affected Service</label>
+                            <select name="service_id" class="w-full p-3 rounded-lg border border-ctp-surface0 bg-ctp-base text-ctp-text text-sm focus:ring-2 focus:ring-ctp-mauve focus:outline-none">
                                 <option value="">System Wide</option>
                                 ${services.map(s => `<option value="${s.id}">${s.name}</option>`).join('')}
                             </select>
                         </div>
                     </div>
-                    <div class="form-group">
-                        <label>Message</label>
-                        <textarea name="message" rows="2" placeholder="Describe the issue..." required></textarea>
+                    <div>
+                        <label class="block mb-2 text-xs text-ctp-overlay0 font-semibold">Message</label>
+                        <textarea name="message" rows="2" placeholder="Describe the issue..." class="w-full p-3 rounded-lg border border-ctp-surface0 bg-ctp-base text-ctp-text text-sm focus:ring-2 focus:ring-ctp-mauve focus:outline-none" required></textarea>
                     </div>
-                    <button type="submit" class="btn btn-primary" style="background: var(--down-color)">Post Incident</button>
+                    <button type="submit" class="w-full py-3 px-5 rounded-lg border-none bg-ctp-red text-ctp-crust font-bold cursor-pointer hover:opacity-90 transition-opacity">Post Incident</button>
                 </form>
             </div>
         </div>
 
         <!-- Active Incidents -->
-        <div class="card">
-            <h2>Active Incidents</h2>
-            <div style="overflow-x: auto;">
-                <table>
-                    <thead><tr><th>Title</th><th>Service</th><th>Started</th><th class="actions">Action</th></tr></thead>
+        <div class="bg-ctp-mantle p-6 rounded-xl border border-ctp-surface0 shadow-lg mb-6 overflow-hidden">
+            <h2 class="mt-0 text-base mb-5 text-ctp-overlay0 uppercase tracking-widest font-bold">Active Incidents</h2>
+            <div class="overflow-x-auto">
+                <table class="w-full border-collapse">
+                    <thead>
+                        <tr class="border-b-2 border-ctp-surface0">
+                            <th class="text-left p-4 text-[0.7rem] uppercase text-ctp-overlay0">Title</th>
+                            <th class="text-left p-4 text-[0.7rem] uppercase text-ctp-overlay0">Service</th>
+                            <th class="text-left p-4 text-[0.7rem] uppercase text-ctp-overlay0">Started</th>
+                            <th class="text-right p-4 text-[0.7rem] uppercase text-ctp-overlay0">Action</th>
+                        </tr>
+                    </thead>
                     <tbody>
-                        ${activeIncidents.length === 0 ? '<tr><td colspan="4" style="text-align:center; padding: 40px; color: var(--text-muted);">No active incidents.</td></tr>' : activeIncidents.map(i => `
-                            <tr>
-                                <td><strong>${escapeHtml(i.title)}</strong></td>
-                                <td>${i.service_name || 'System Wide'}</td>
-                                <td>${new Date(i.created_at + (i.created_at.endsWith('Z') ? '' : 'Z')).toLocaleString()}</td>
-                                <td class="actions">
-                                    <form method="POST" action="/admin/incidents/resolve" style="display:inline">
+                        ${activeIncidents.length === 0 ? '<tr><td colspan="4" class="text-center p-10 text-ctp-overlay0">No active incidents.</td></tr>' : activeIncidents.map(i => `
+                            <tr class="border-b border-ctp-surface0 last:border-b-0">
+                                <td class="p-4 text-sm font-bold">${escapeHtml(i.title)}</td>
+                                <td class="p-4 text-sm">${i.service_name || 'System Wide'}</td>
+                                <td class="p-4 text-sm">${new Date(i.created_at + (i.created_at.endsWith('Z') ? '' : 'Z')).toLocaleString()}</td>
+                                <td class="p-4 text-right">
+                                    <form method="POST" action="/admin/incidents/resolve" class="inline">
                                         <input type="hidden" name="id" value="${i.id}">
-                                        <button type="submit" class="btn btn-success">Resolve</button>
+                                        <button type="submit" class="px-3 py-1.5 rounded-lg bg-ctp-green/20 text-ctp-green border border-ctp-green text-xs font-bold hover:bg-ctp-green/30 transition-colors">Resolve</button>
                                     </form>
                                 </td>
                             </tr>
@@ -378,21 +279,28 @@ export function renderAdminPage(services: any[], activeIncidents: any[], error?:
         </div>
 
         <!-- Existing Services -->
-        <div class="card">
-            <h2>Existing Services</h2>
-            <div style="overflow-x: auto;">
-                <table>
-                    <thead><tr><th>Name</th><th>URL</th><th>Endpoint</th><th class="actions">Action</th></tr></thead>
+        <div class="bg-ctp-mantle p-6 rounded-xl border border-ctp-surface0 shadow-lg overflow-hidden">
+            <h2 class="mt-0 text-base mb-5 text-ctp-overlay0 uppercase tracking-widest font-bold">Existing Services</h2>
+            <div class="overflow-x-auto">
+                <table class="w-full border-collapse">
+                    <thead>
+                        <tr class="border-b-2 border-ctp-surface0">
+                            <th class="text-left p-4 text-[0.7rem] uppercase text-ctp-overlay0">Name</th>
+                            <th class="text-left p-4 text-[0.7rem] uppercase text-ctp-overlay0">URL</th>
+                            <th class="text-left p-4 text-[0.7rem] uppercase text-ctp-overlay0">Endpoint</th>
+                            <th class="text-right p-4 text-[0.7rem] uppercase text-ctp-overlay0">Action</th>
+                        </tr>
+                    </thead>
                     <tbody>
-                        ${services.length === 0 ? '<tr><td colspan="4" style="text-align:center; padding: 40px; color: var(--text-muted);">No services configured.</td></tr>' : services.map(s => `
-                            <tr>
-                                <td><strong>${escapeHtml(s.name)}</strong></td>
-                                <td>${escapeHtml(s.url)}</td>
-                                <td><code>${escapeHtml(s.health_endpoint)}</code></td>
-                                <td class="actions">
-                                    <form method="POST" action="/admin/remove" style="display:inline">
+                        ${services.length === 0 ? '<tr><td colspan="4" class="text-center p-10 text-ctp-overlay0">No services configured.</td></tr>' : services.map(s => `
+                            <tr class="border-b border-ctp-surface0 last:border-b-0">
+                                <td class="p-4 text-sm font-bold">${escapeHtml(s.name)}</td>
+                                <td class="p-4 text-sm">${escapeHtml(s.url)}</td>
+                                <td class="p-4 text-sm"><code class="bg-ctp-crust px-1.5 py-0.5 rounded text-xs text-ctp-mauve">${escapeHtml(s.health_endpoint)}</code></td>
+                                <td class="p-4 text-right">
+                                    <form method="POST" action="/admin/remove" class="inline">
                                         <input type="hidden" name="id" value="${s.id}">
-                                        <button type="submit" class="btn btn-danger" onclick="return confirm('Remove this service?')">Remove</button>
+                                        <button type="submit" class="px-3 py-1.5 rounded-lg bg-ctp-red/20 text-ctp-red border border-ctp-red text-xs font-bold hover:bg-ctp-red/30 transition-colors" onclick="return confirm('Remove this service?')">Remove</button>
                                     </form>
                                 </td>
                             </tr>
@@ -407,138 +315,107 @@ export function renderAdminPage(services: any[], activeIncidents: any[], error?:
 }
 
 export function renderStatusPage(services: any[], historicalIncidents: any[], manualIncidents: any[]) {
-    const overallStatusText = manualIncidents.length > 0 ? 'Active System Incident' : (services.every(s => s.latest.status === 'up') ? 'All Systems Operational' : 'Partial System Outage');
-    const overallStatusColor = manualIncidents.length > 0 ? 'var(--down-color)' : (services.every(s => s.latest.status === 'up') ? 'var(--up-color)' : 'var(--warn-color)');
+    const isAllUp = services.every(s => s.latest.status === 'up') && manualIncidents.length === 0;
+    const overallStatusText = manualIncidents.length > 0 ? 'Active System Incident' : (isAllUp ? 'All Systems Operational' : 'Partial System Outage');
+    const overallStatusColor = manualIncidents.length > 0 ? 'ctp-red' : (isAllUp ? 'ctp-green' : 'ctp-yellow');
     const lastChecked = new Date().toLocaleString();
 
     return `<!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="mocha">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>StatusFlare - System Health</title>
+    <link rel="stylesheet" href="/tailwind.css">
+    <script>${themeScript}</script>
+    <meta http-equiv="refresh" content="60">
     <style>
-        ${globalStyles}
-        .container { width: 100%; padding: 40px 20px; margin: 0; max-width: 100%; }
-        header { margin-bottom: 40px; text-align: center; }
-        h1 { font-size: 2.5rem; margin-bottom: 10px; letter-spacing: -0.025em; color: var(--accent); }
-
-        .overall-status {
-            padding: 20px; border-radius: 12px; background: color-mix(in srgb, ${overallStatusColor} 15%, transparent); border: 1px solid ${overallStatusColor};
-            color: ${overallStatusColor}; font-weight: 600; font-size: 1.25rem; display: flex; align-items: center; justify-content: center; gap: 12px; margin-bottom: 30px; animation: pulse 2s infinite;
-        }
-        
         @keyframes pulse {
-            0% { box-shadow: 0 0 0 0 color-mix(in srgb, ${overallStatusColor} 40%, transparent); }
+            0% { box-shadow: 0 0 0 0 var(--pulse-color); }
             70% { box-shadow: 0 0 0 10px transparent; }
             100% { box-shadow: 0 0 0 0 transparent; }
         }
-
-        .section-title { font-size: 1.25rem; margin: 40px 0 20px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.1em; font-weight: 700; }
-        .services-grid { display: flex; flex-direction: column; gap: 16px; width: 100%; }
-
-        .service-card {
-            background: var(--card-bg); border-radius: 12px; transition: border-color 0.2s ease; border: 1px solid var(--border-color); overflow: hidden;
-            display: block; width: 100%;
+        .animate-pulse-custom {
+            animation: pulse 2s infinite;
         }
-        .service-card:hover { border-color: var(--accent); }
-        .service-header { padding: 20px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; }
-        .service-info { flex: 1; min-width: 200px; }
-        .service-info h3 { margin: 0; font-size: 1.1rem; }
-        .service-info p { margin: 4px 0 0; font-size: 0.875rem; color: var(--text-muted); }
-        .latency { font-size: 0.75rem; color: var(--text-muted); margin-left: 8px; }
-
-        .status-badge { padding: 6px 12px; border-radius: 20px; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; display: flex; align-items: center; gap: 6px; }
-        .status-up { background: color-mix(in srgb, var(--up-color) 20%, transparent); color: var(--up-color); }
-        .status-down { background: color-mix(in srgb, var(--down-color) 20%, transparent); color: var(--down-color); }
-
-        .history-timeline { display: flex; gap: 4px; padding: 0 20px 20px; overflow-x: auto; scrollbar-width: none; }
-        .history-timeline::-webkit-scrollbar { display: none; }
-        .history-item { flex: 0 0 auto; display: flex; align-items: center; justify-content: center; }
-        .history-item svg { width: 14px; height: 14px; opacity: 0.6; transition: transform 0.2s, opacity 0.2s; }
-        .history-item:hover svg { transform: scale(1.3); opacity: 1; }
-
-        footer { margin-top: 50px; text-align: center; color: var(--text-muted); font-size: 0.875rem; padding-bottom: 40px; }
     </style>
-    <script>${themeScript}</script>
-    <meta http-equiv="refresh" content="60">
 </head>
-<body>
-    <button id="theme-toggle" class="theme-toggle" title="Toggle Theme">🌓</button>
-    <div class="container">
-        <header>
-            <h1>StatusFlare</h1>
-            <p style="color: var(--text-muted)">Real-time system health monitoring</p>
+<body class="bg-ctp-base text-ctp-text font-mono min-h-screen">
+    <button id="theme-toggle" class="fixed top-5 right-5 bg-ctp-mantle border border-ctp-surface0 text-ctp-text w-10 h-10 rounded-full cursor-pointer flex items-center justify-center shadow-lg z-50 hover:bg-ctp-surface0 transition-colors" title="Toggle Theme">🌓</button>
+    <div class="max-w-4xl mx-auto px-5 py-10">
+        <header class="mb-10 text-center">
+            <h1 class="text-4xl font-bold mb-2 tracking-tight text-ctp-mauve">StatusFlare</h1>
+            <p class="text-ctp-overlay0 text-lg">Real-time system health monitoring</p>
         </header>
 
-        <div class="overall-status">
-            ${renderSvgDot(services.every(s => s.latest.status === 'up') ? 'up' : 'down', 24)}
+        <div class="p-5 rounded-xl bg-ctp-${overallStatusColor}/15 border border-ctp-${overallStatusColor} text-ctp-${overallStatusColor} font-bold text-xl flex items-center justify-center gap-3 mb-8 animate-pulse-custom" style="--pulse-color: color-mix(in srgb, var(--color-ctp-${overallStatusColor}) 40%, transparent)">
+            ${renderSvgDot(isAllUp ? 'up' : 'down', 24)}
             ${overallStatusText}
         </div>
 
         ${manualIncidents.length > 0 ? `
-            <div class="section-title" style="color: var(--down-color)">Active Incidents</div>
-            <div class="incidents-list" style="border: 1px solid var(--down-color); border-radius: 12px; overflow: hidden; margin-bottom: 40px;">
+            <div class="text-lg mb-5 mt-10 text-ctp-red uppercase tracking-widest font-bold">Active Incidents</div>
+            <div class="border border-ctp-red rounded-xl overflow-hidden mb-10">
                 ${manualIncidents.map(i => `
-                    <div class="incident-item" style="padding: 20px; border-bottom: 1px solid var(--border-color); background: color-mix(in srgb, var(--down-color) 5%, transparent)">
-                        <h4 style="color: var(--down-color); margin: 0;">${escapeHtml(i.title)} ${i.service_name ? `(${escapeHtml(i.service_name)})` : ''}</h4>
-                        <p style="color: var(--text-main); margin: 8px 0;">${escapeHtml(i.message)}</p>
-                        <div style="font-size: 0.75rem; color: var(--text-muted)">Started: ${new Date(i.created_at + (i.created_at.endsWith('Z') ? '' : 'Z')).toLocaleString()}</div>
+                    <div class="p-5 border-b border-ctp-surface0 last:border-b-0 bg-ctp-red/5">
+                        <h4 class="text-ctp-red m-0 font-bold">${escapeHtml(i.title)} ${i.service_name ? `(${escapeHtml(i.service_name)})` : ''}</h4>
+                        <p class="text-ctp-text my-2 text-sm">${escapeHtml(i.message)}</p>
+                        <div class="text-xs text-ctp-overlay0">Started: ${new Date(i.created_at + (i.created_at.endsWith('Z') ? '' : 'Z')).toLocaleString()}</div>
                     </div>
                 `).join('')}
             </div>
         ` : ''}
 
-        <div class="section-title">Current Status</div>
-        <div class="services-grid">
+        <div class="text-lg mb-5 mt-10 text-ctp-overlay0 uppercase tracking-widest font-bold">Current Status</div>
+        <div class="flex flex-col gap-4">
             ${services.map(s => {
                 const latest = s.latest;
                 const historyTimeline = [...s.history].reverse().map(h => 
-                    `<div class="history-item" title="${new Date(h.timestamp + (h.timestamp.endsWith('Z') ? '' : 'Z')).toLocaleString()} - ${h.latency_ms}ms">
+                    `<div class="flex-none flex items-center justify-center" title="${new Date(h.timestamp + (h.timestamp.endsWith('Z') ? '' : 'Z')).toLocaleString()} - ${h.latency_ms}ms">
                         ${renderSvgDot(h.status, 14)}
                     </div>`
                 ).join('');
 
                 return `
-                <div class="service-card" onclick="window.location.href='/status/${encodeURIComponent(s.name)}'">
-                    <div class="service-header">
-                        <div class="service-info">
-                            <h3>${escapeHtml(s.name)} <span class="latency">${latest.latency_ms ? latest.latency_ms + 'ms' : ''}</span></h3>
-                            <p>${escapeHtml(s.url)}</p>
+                <div class="bg-ctp-mantle rounded-xl border border-ctp-surface0 overflow-hidden hover:border-ctp-mauve transition-colors cursor-pointer group" onclick="window.location.href='/status/${encodeURIComponent(s.name)}'">
+                    <div class="p-5 flex justify-between items-center flex-wrap gap-2.5">
+                        <div class="flex-1 min-w-[200px]">
+                            <h3 class="m-0 text-lg font-bold">${escapeHtml(s.name)} <span class="text-xs text-ctp-overlay0 font-normal ml-2">${latest.latency_ms ? latest.latency_ms + 'ms' : ''}</span></h3>
+                            <p class="m-0 mt-1 text-sm text-ctp-overlay0">${escapeHtml(s.url)}</p>
                         </div>
-                        <div class="status-badge ${latest.status === 'up' ? 'status-up' : 'status-down'}">
+                        <div class="px-3 py-1.5 rounded-full text-xs font-bold uppercase flex items-center gap-1.5 ${latest.status === 'up' ? 'bg-ctp-green/20 text-ctp-green' : 'bg-ctp-red/20 text-ctp-red'}">
                             ${renderSvgDot(latest.status, 12)}
                             ${latest.status?.toUpperCase()}
                         </div>
                     </div>
-                    <div class="history-timeline">
+                    <div class="flex gap-1 px-5 pb-5 overflow-x-auto no-scrollbar">
                         ${historyTimeline}
                     </div>
-                    <div style="padding: 0 20px 15px; text-align: right;">
-                        <a href="/status/${encodeURIComponent(s.name)}" style="color: var(--accent); font-size: 0.75rem; text-decoration: none; font-weight: 700;">VIEW DETAILS →</a>
+                    <div class="px-5 pb-4 text-right">
+                        <a href="/status/${encodeURIComponent(s.name)}" class="text-ctp-mauve text-xs no-underline font-bold group-hover:underline">VIEW DETAILS →</a>
                     </div>
                 </div>`;
             }).join('')}
         </div>
 
-        <div class="section-title">Historical Outages</div>
-        <div class="incidents-list" style="border: 1px solid var(--border-color); border-radius: 12px; overflow: hidden;">
+        <div class="text-lg mb-5 mt-10 text-ctp-overlay0 uppercase tracking-widest font-bold">Historical Outages</div>
+        <div class="border border-ctp-surface0 rounded-xl overflow-hidden bg-ctp-mantle shadow-lg">
             ${historicalIncidents.length === 0 ? `
-                <div class="incident-item" style="padding: 20px; color: var(--up-color); text-align: center;">No recent outages reported.</div>
+                <div class="p-10 text-ctp-green text-center font-bold">No recent outages reported.</div>
             ` : historicalIncidents.map(incident => `
-                <div class="incident-item" style="padding: 16px 20px; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center;">
+                <div class="p-4 px-5 border-b border-ctp-surface0 last:border-b-0 flex justify-between items-center gap-4">
                     <div>
-                        <h4 style="margin: 0; color: var(--down-color)">Outage: ${escapeHtml(incident.name)}</h4>
-                        <span style="font-size: 0.8rem; color: var(--text-muted)">HTTP ${incident.status_code || 'Error'}: ${escapeHtml(incident.response_snippet?.slice(0, 50))}...</span>
+                        <h4 class="m-0 text-ctp-red font-bold">Outage: ${escapeHtml(incident.name)}</h4>
+                        <span class="text-xs text-ctp-overlay0">HTTP ${incident.status_code || 'Error'}: ${escapeHtml(incident.response_snippet?.slice(0, 50))}...</span>
                     </div>
-                    <div style="font-size: 0.8rem; color: var(--text-muted)">${new Date(incident.timestamp + (incident.timestamp.endsWith('Z') ? '' : 'Z')).toLocaleString()}</div>
+                    <div class="text-xs text-ctp-overlay0 whitespace-nowrap">${new Date(incident.timestamp + (incident.timestamp.endsWith('Z') ? '' : 'Z')).toLocaleString()}</div>
                 </div>
             `).join('')}
         </div>
 
-        <footer>
-            <div style="margin-top: 10px; font-style: italic;">Last checked: ${lastChecked}</div>
-            <p>Powered by Cloudflare Workers & D1</p>
+        <footer class="mt-20 text-center text-ctp-overlay0 text-sm pb-10">
+            <div class="mt-2.5 italic">Last checked: ${lastChecked}</div>
+            <p class="mt-4">Powered by Cloudflare Workers & D1</p>
         </footer>
     </div>
 </body>
@@ -554,133 +431,94 @@ export function renderServiceDetailPage(service: any, history: any[], incidents:
     const lastChecked = new Date(latest.timestamp + (latest.timestamp.endsWith('Z') ? '' : 'Z')).toLocaleString();
 
     return `<!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="mocha">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>${escapeHtml(service.name)} - Detailed Status</title>
-    <style>
-        ${globalStyles}
-        .container { width: 100%; padding: 40px 20px; max-width: 1200px; margin: auto; }
-        .back-link { display: inline-block; margin-bottom: 24px; color: var(--text-muted); text-decoration: none; font-size: 0.875rem; }
-        .back-link:hover { color: var(--accent); }
-        
-        .header-card { background: var(--card-bg); border-radius: 12px; padding: 32px; border: 1px solid var(--border-color); margin-bottom: 24px; display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 24px; }
-        .header-main h1 { margin: 0; font-size: 2rem; color: var(--text-main); }
-        .header-main p { margin: 8px 0 0; color: var(--text-muted); }
-        
-        .status-badge { padding: 12px 24px; border-radius: 12px; font-size: 1rem; font-weight: 700; text-transform: uppercase; display: flex; align-items: center; gap: 8px; }
-        .status-up { background: color-mix(in srgb, var(--up-color) 20%, transparent); color: var(--up-color); }
-        .status-down { background: color-mix(in srgb, var(--down-color) 20%, transparent); color: var(--down-color); }
-
-        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 40px; }
-        .stat-card { background: var(--card-bg); padding: 24px; border-radius: 12px; border: 1px solid var(--border-color); }
-        .stat-label { font-size: 0.75rem; text-transform: uppercase; color: var(--text-muted); font-weight: 700; margin-bottom: 8px; }
-        .stat-value { font-size: 1.5rem; font-weight: 700; color: var(--accent); }
-
-        .health-details-card { background: var(--card-bg); border-radius: 12px; border: 1px solid var(--border-color); padding: 24px; margin-bottom: 40px; }
-        .health-details-card h2 { margin: 0 0 20px; font-size: 1.25rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.1em; }
-        
-        .parsed-content { font-size: 0.9rem; }
-        .parsed-item { margin-bottom: 8px; display: flex; gap: 12px; align-items: flex-start; border-bottom: 1px solid color-mix(in srgb, var(--border-color) 50%, transparent); padding-bottom: 8px; }
-        .parsed-item:last-child { border-bottom: none; }
-        .parsed-key { color: var(--text-muted); font-weight: 700; white-space: nowrap; min-width: 150px; }
-        .parsed-value { color: var(--text-main); word-break: break-all; flex: 1; }
-        
-        .parsed-list { padding-left: 12px; border-left: 1px solid var(--border-color); margin-top: 4px; display: flex; flex-direction: column; gap: 8px; }
-        .parsed-object { padding-left: 12px; border-left: 1px solid var(--border-color); margin-top: 4px; display: flex; flex-direction: column; gap: 4px; width: 100%; }
-
-        .parsed-table { width: 100%; border-collapse: collapse; background: var(--code-bg); border-radius: 8px; overflow: hidden; border: 1px solid var(--border-color); font-size: 0.8rem; }
-        .parsed-table th { text-align: left; background: color-mix(in srgb, var(--accent) 10%, transparent); color: var(--accent); padding: 10px; border-bottom: 1px solid var(--border-color); text-transform: uppercase; font-size: 0.7rem; }
-        .parsed-table td { padding: 10px; border-bottom: 1px solid var(--border-color); color: var(--text-main); }
-        .parsed-table tr:last-child td { border-bottom: none; }
-
-        .raw-snippet { background: var(--code-bg); padding: 16px; border-radius: 8px; font-size: 0.8rem; color: var(--text-muted); margin: 0; white-space: pre-wrap; border: 1px solid var(--border-color); }
-
-        .log-table { width: 100%; border-collapse: collapse; background: var(--card-bg); border-radius: 12px; overflow: hidden; border: 1px solid var(--border-color); }
-        .log-table th { text-align: left; font-size: 0.75rem; text-transform: uppercase; color: var(--text-muted); padding: 16px; border-bottom: 2px solid var(--border-color); }
-        .log-table td { padding: 16px; border-bottom: 1px solid var(--border-color); font-size: 0.875rem; }
-        
-        pre { background: var(--code-bg); padding: 12px; border-radius: 6px; font-size: 0.75rem; border: 1px solid var(--border-color); margin: 0; white-space: pre-wrap; word-break: break-all; color: var(--text-muted); }
-    </style>
+    <link rel="stylesheet" href="/tailwind.css">
     <script>${themeScript}</script>
 </head>
-<body>
-    <button id="theme-toggle" class="theme-toggle" title="Toggle Theme">🌓</button>
-    <div class="container">
-        <a href="/" class="back-link">← BACK TO DASHBOARD</a>
+<body class="bg-ctp-base text-ctp-text font-mono min-h-screen p-5 sm:p-10">
+    <button id="theme-toggle" class="fixed top-5 right-5 bg-ctp-mantle border border-ctp-surface0 text-ctp-text w-10 h-10 rounded-full cursor-pointer flex items-center justify-center shadow-lg z-50 hover:bg-ctp-surface0 transition-colors" title="Toggle Theme">🌓</button>
+    <div class="max-w-6xl mx-auto">
+        <a href="/" class="inline-block mb-6 text-ctp-overlay0 no-underline text-sm hover:text-ctp-mauve transition-colors">← BACK TO DASHBOARD</a>
         
-        <div class="header-card">
-            <div class="header-main">
-                <h1>${escapeHtml(service.name)}</h1>
-                <p>${escapeHtml(service.url)}${service.health_endpoint}</p>
+        <div class="bg-ctp-mantle rounded-xl p-8 border border-ctp-surface0 mb-6 flex justify-between items-start flex-wrap gap-6 shadow-xl">
+            <div class="flex-1 min-w-[200px]">
+                <h1 class="m-0 text-3xl font-bold">${escapeHtml(service.name)}</h1>
+                <p class="m-0 mt-2 text-ctp-overlay0">${escapeHtml(service.url)}${service.health_endpoint}</p>
             </div>
-            <div class="status-badge ${latest.status === 'up' ? 'status-up' : 'status-down'}">
+            <div class="px-6 py-3 rounded-xl text-lg font-bold uppercase flex items-center gap-2 ${latest.status === 'up' ? 'bg-ctp-green/20 text-ctp-green' : 'bg-ctp-red/20 text-ctp-red'}">
                 ${renderSvgDot(latest.status, 20)}
                 ${latest.status?.toUpperCase()}
             </div>
         </div>
 
-        <div class="stats-grid">
-            <div class="stat-card">
-                <div class="stat-label">Uptime (Recent)</div>
-                <div class="stat-value">${uptime}%</div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-10">
+            <div class="bg-ctp-mantle p-6 rounded-xl border border-ctp-surface0 shadow-md">
+                <div class="text-[0.7rem] uppercase text-ctp-overlay0 font-bold mb-2">Uptime (Recent)</div>
+                <div class="text-2xl font-bold text-ctp-mauve">${uptime}%</div>
             </div>
-            <div class="stat-card">
-                <div class="stat-label">Avg. Latency</div>
-                <div class="stat-value">${history.length > 0 ? (history.reduce((a, b) => a + b.latency_ms, 0) / history.length).toFixed(0) : 0}ms</div>
+            <div class="bg-ctp-mantle p-6 rounded-xl border border-ctp-surface0 shadow-md">
+                <div class="text-[0.7rem] uppercase text-ctp-overlay0 font-bold mb-2">Avg. Latency</div>
+                <div class="text-2xl font-bold text-ctp-mauve">${history.length > 0 ? (history.reduce((a, b) => a + b.latency_ms, 0) / history.length).toFixed(0) : 0}ms</div>
             </div>
-            <div class="stat-card">
-                <div class="stat-label">Last Checked</div>
-                <div class="stat-value" style="font-size: 1rem;">${lastChecked}</div>
+            <div class="bg-ctp-mantle p-6 rounded-xl border border-ctp-surface0 shadow-md">
+                <div class="text-[0.7rem] uppercase text-ctp-overlay0 font-bold mb-2">Last Checked</div>
+                <div class="text-lg font-bold text-ctp-mauve">${lastChecked}</div>
             </div>
         </div>
 
-        <div class="health-details-card">
-            <h2>Latest Health Details</h2>
-            <div style="margin-bottom: 12px; font-weight: 700; color: var(--accent);">HTTP ${latest.status_code || 'Error'}</div>
+        <div class="bg-ctp-mantle rounded-xl border border-ctp-surface0 p-6 mb-10 shadow-lg">
+            <h2 class="m-0 mb-5 text-lg text-ctp-overlay0 uppercase tracking-widest font-bold">Latest Health Details</h2>
+            <div class="mb-3 font-bold text-ctp-mauve">HTTP ${latest.status_code || 'Error'}</div>
             ${renderParsedData(latest.response_snippet)}
         </div>
 
         ${incidents.length > 0 ? `
-            <div class="section-title" style="color: var(--down-color); font-size: 1.25rem; margin-bottom: 20px; font-weight: 700; text-transform: uppercase;">Active Incidents</div>
-            <div class="incidents-list" style="margin-bottom: 40px; border: 1px solid var(--down-color); border-radius: 12px; overflow: hidden;">
+            <div class="text-lg mb-5 mt-10 text-ctp-red uppercase tracking-widest font-bold">Active Incidents</div>
+            <div class="mb-10 border border-ctp-red rounded-xl overflow-hidden bg-ctp-red/5">
                 ${incidents.map(i => `
-                    <div class="incident-item" style="padding: 20px; background: color-mix(in srgb, var(--down-color) 5%, transparent);">
-                        <h4 style="margin: 0; color: var(--down-color)">${escapeHtml(i.title)}</h4>
-                        <p style="margin: 8px 0; color: var(--text-main)">${escapeHtml(i.message)}</p>
-                        <div style="font-size: 0.75rem; color: var(--text-muted)">Started: ${new Date(i.created_at + (i.created_at.endsWith('Z') ? '' : 'Z')).toLocaleString()}</div>
+                    <div class="p-5 border-b border-ctp-surface0 last:border-b-0">
+                        <h4 class="m-0 text-ctp-red font-bold">${escapeHtml(i.title)}</h4>
+                        <p class="my-2 text-ctp-text text-sm">${escapeHtml(i.message)}</p>
+                        <div class="text-xs text-ctp-overlay0">Started: ${new Date(i.created_at + (i.created_at.endsWith('Z') ? '' : 'Z')).toLocaleString()}</div>
                     </div>
                 `).join('')}
             </div>
         ` : ''}
 
-        <div class="section-title" style="font-size: 1.25rem; margin-bottom: 20px; font-weight: 700; text-transform: uppercase; color: var(--text-muted);">Recent Health Checks</div>
-        <table class="log-table">
-            <thead>
-                <tr>
-                    <th>Time</th>
-                    <th>Status</th>
-                    <th>Latency</th>
-                    <th>Details</th>
-                </tr>
-            </thead>
-            <tbody>
-                ${history.map(h => `
-                    <tr>
-                        <td style="white-space: nowrap;">${new Date(h.timestamp + (h.timestamp.endsWith('Z') ? '' : 'Z')).toLocaleString()}</td>
-                        <td><span style="font-weight: 700; color: ${h.status === 'up' ? 'var(--up-color)' : 'var(--down-color)'}">${h.status.toUpperCase()}</span></td>
-                        <td>${h.latency_ms}ms</td>
-                        <td>
-                            <div style="margin-bottom: 4px; font-size: 0.75rem;"><strong>HTTP ${h.status_code || 'Error'}</strong></div>
-                            <pre>${escapeHtml(h.response_snippet?.slice(0, 150))}</pre>
-                        </td>
-                    </tr>
-                `).join('')}
-            </tbody>
-        </table>
+        <div class="text-lg mb-5 mt-10 text-ctp-overlay0 uppercase tracking-widest font-bold">Recent Health Checks</div>
+        <div class="bg-ctp-mantle rounded-xl border border-ctp-surface0 overflow-hidden shadow-lg mb-10">
+            <div class="overflow-x-auto">
+                <table class="w-full border-collapse">
+                    <thead>
+                        <tr class="border-b-2 border-ctp-surface0">
+                            <th class="text-left p-4 text-[0.7rem] uppercase text-ctp-overlay0">Time</th>
+                            <th class="text-left p-4 text-[0.7rem] uppercase text-ctp-overlay0">Status</th>
+                            <th class="text-left p-4 text-[0.7rem] uppercase text-ctp-overlay0">Latency</th>
+                            <th class="text-left p-4 text-[0.7rem] uppercase text-ctp-overlay0">Details</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${history.map(h => `
+                            <tr class="border-b border-ctp-surface0 last:border-b-0">
+                                <td class="p-4 text-sm whitespace-nowrap">${new Date(h.timestamp + (h.timestamp.endsWith('Z') ? '' : 'Z')).toLocaleString()}</td>
+                                <td class="p-4 text-sm font-bold ${h.status === 'up' ? 'text-ctp-green' : 'text-ctp-red'}">${h.status.toUpperCase()}</td>
+                                <td class="p-4 text-sm">${h.latency_ms}ms</td>
+                                <td class="p-4">
+                                    <div class="mb-1 text-[0.7rem] font-bold text-ctp-mauve">HTTP ${h.status_code || 'Error'}</div>
+                                    <pre class="bg-ctp-crust p-3 rounded-lg text-xs border border-ctp-surface0 m-0 whitespace-pre-wrap break-all text-ctp-overlay0">${escapeHtml(h.response_snippet?.slice(0, 150))}</pre>
+                                </td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            </div>
+        </div>
 
-        <footer style="margin-top: 60px; text-align: center; color: var(--text-muted); font-size: 0.875rem; padding-bottom: 40px;">
+        <footer class="mt-20 text-center text-ctp-overlay0 text-sm pb-10">
             <p>Powered by Cloudflare Workers & D1</p>
         </footer>
     </div>
