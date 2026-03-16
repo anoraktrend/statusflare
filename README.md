@@ -15,6 +15,7 @@ StatusFlare is a lightweight, self-hosted system health monitoring dashboard bui
 - **D1 Persistence**: All data—services, health history, and incidents—is stored in Cloudflare's D1 SQL database.
 - **Admin Panel**: Secure management interface with support for OIDC (Authelia) and legacy password login.
 - **Smart Parsing**: Automatically prettifies JSON and GraphQL responses in the service detail view.
+- **Email Notifications**: Integrated with Mailgun to send alerts when services go down or incidents are created/resolved.
 
 ## 🚀 Quick Start
 
@@ -55,9 +56,24 @@ StatusFlare is a lightweight, self-hosted system health monitoring dashboard bui
    
    # Optional: For legacy password login (SHA-256 hash)
    npx wrangler secret put ADMIN_PASSWORD_HASH
+
+   # Email Alerts (Mailgun)
+   npx wrangler secret put MAILGUN_API_KEY
    ```
 
-6. **Deploy to Cloudflare:**
+6. **Configure Mailgun Variables:**
+   Update your `wrangler.jsonc` with your Mailgun domain and recipient email:
+   ```jsonc
+   {
+     "vars": {
+       "MAILGUN_DOMAIN": "mg.yourdomain.com",
+       "MAILGUN_FROM": "StatusFlare <alerts@mg.yourdomain.com>",
+       "NOTIFICATION_EMAIL": "admin@example.com"
+     }
+   }
+   ```
+
+7. **Deploy to Cloudflare:**
    ```bash
    npm run deploy
    ```
