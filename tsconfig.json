@@ -9,6 +9,12 @@
     /* Specify what JSX code is generated. */
 		"jsx": "react-jsx",
 		"jsxImportSource": "preact",
+		"baseUrl": ".",
+		"paths": {
+			"react": ["./node_modules/preact/compat"],
+			"react-dom": ["./node_modules/preact/compat"],
+			"react-dom/*": ["./node_modules/preact/compat/*"]
+		},
 
     /* Specify what module code is generated. */
 		"module": "es2022",
