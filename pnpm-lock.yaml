@@ -8,6 +8,12 @@ importers:
 
   .:
     dependencies:
+      '@preact-icons/lu':
+        specifier: npm:@jsr/preact-icons__lu@^1.0.13
+        version: '@jsr/preact-icons__lu@1.0.13'
+      '@preact-icons/si':
+        specifier: npm:@jsr/preact-icons__si@^1.0.13
+        version: '@jsr/preact-icons__si@1.0.13'
       jose:
         specifier: ^6.2.1
         version: 6.2.1
@@ -442,6 +448,15 @@ packages:
 
   '@jridgewell/trace-mapping@0.3.9':
     resolution: {integrity: sha512-3Belt6tdc8bPgAtbcmdtNJlirVoTmEb5e2gC94PnkwEW9jI6CAHUeoG85tjWP5WquqfavoMtMwiG4P926ZKKuQ==}
+
+  '@jsr/preact-icons__common@1.1.0':
+    resolution: {integrity: sha512-mVjtQUxBw+NjQ29oTq33LgAO8gjgiGtvkWAExwdW7iHLtxZiIXwCEEfFR3IRvZhpg2htEwTJZ6V5h+GMli36Yg==, tarball: https://npm.jsr.io/~/11/@jsr/preact-icons__common/1.1.0.tgz}
+
+  '@jsr/preact-icons__lu@1.0.13':
+    resolution: {integrity: sha512-Qjxu98BHJ6C+jhH9vt8EgEwZ417RIXSgHRvPGFi15SEzpTFGiS1nixObcoYL7ecpvuaRZmO2xkw5TSkrhuC3Uw==, tarball: https://npm.jsr.io/~/11/@jsr/preact-icons__lu/1.0.13.tgz}
+
+  '@jsr/preact-icons__si@1.0.13':
+    resolution: {integrity: sha512-WV/zgLGMBjt1c9aL0HLpg3ppqxpxwvZA84m+Ur3hLYbK79V3sOuU0JrvOQAxtbM5RbfX7RFd4tv8bMufqN2HRA==, tarball: https://npm.jsr.io/~/11/@jsr/preact-icons__si/1.0.13.tgz}
 
   '@parcel/watcher-android-arm64@2.5.6':
     resolution: {integrity: sha512-YQxSS34tPF/6ZG7r/Ih9xy+kP/WwediEUsqmtf0cuCV5TPPKw/PQHRhueUo6JdeFJaqV3pyjm0GdYjZotbRt/A==}
@@ -1052,6 +1067,9 @@ packages:
     peerDependencies:
       preact: '>=10 || >= 11.0.0-0'
 
+  preact@10.22.1:
+    resolution: {integrity: sha512-jRYbDDgMpIb5LHq3hkI0bbl+l/TQ9UnkdQ0ww+lp+4MMOdqaUYdFc5qeyP+IV8FAd/2Em7drVPeKdQxsiWCf/A==}
+
   preact@10.29.0:
     resolution: {integrity: sha512-wSAGyk2bYR1c7t3SZ3jHcM6xy0lcBcDel6lODcs9ME6Th++Dx2KU+6D3HD8wMMKGA8Wpw7OMd3/4RGzYRpzwRg==}
 
@@ -1503,6 +1521,20 @@ snapshots:
     dependencies:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.5.5
+
+  '@jsr/preact-icons__common@1.1.0':
+    dependencies:
+      preact: 10.29.0
+
+  '@jsr/preact-icons__lu@1.0.13':
+    dependencies:
+      '@jsr/preact-icons__common': 1.1.0
+      preact: 10.22.1
+
+  '@jsr/preact-icons__si@1.0.13':
+    dependencies:
+      '@jsr/preact-icons__common': 1.1.0
+      preact: 10.22.1
 
   '@parcel/watcher-android-arm64@2.5.6':
     optional: true
@@ -1972,6 +2004,8 @@ snapshots:
   preact-render-to-string@6.6.6(preact@10.29.0):
     dependencies:
       preact: 10.29.0
+
+  preact@10.22.1: {}
 
   preact@10.29.0: {}
 
