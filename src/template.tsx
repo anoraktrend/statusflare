@@ -175,7 +175,9 @@ function ParsedData({ snippet }: { snippet: string }) {
   }
 }
 
-function Layout({ title, description = "Real-time system health monitoring", color = "#cba6f7", children }: { title: string; description?: string; color?: string; children: any }) {
+function Layout({ title, description = "Real-time system health monitoring", color = "#cba6f7", badgeService = "global", children }: { title: string; description?: string; color?: string; badgeService?: string; children: any }) {
+  const badgeUrl = `https://status.helltop.net/badge/${encodeURIComponent(badgeService)}.svg?w=1200&h=630`;
+  
   return (
     <html lang="en" className="mocha">
       <head>
@@ -187,11 +189,18 @@ function Layout({ title, description = "Real-time system health monitoring", col
         {/* Open Graph / Social Embeds */}
         <meta property="og:title" content={title} />
         <meta property="og:description" content={description} />
+        <meta property="og:site_name" content="StatusFlare" />
         <meta property="og:type" content="website" />
+        <meta property="og:image" content={badgeUrl} />
+        <meta property="og:image:width" content="1200" />
+        <meta property="og:image:height" content="630" />
+        <meta property="og:image:type" content="image/svg+xml" />
+        
         <meta name="theme-color" content={color} />
-        <meta name="twitter:card" content="summary" />
+        <meta name="twitter:card" content="summary_large_image" />
         <meta name="twitter:title" content={title} />
         <meta name="twitter:description" content={description} />
+        <meta name="twitter:image" content={badgeUrl} />
 
         <link rel="stylesheet" href="/tailwind.css" />
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
@@ -630,6 +639,7 @@ export function renderStatusPage(services: any[], historicalIncidents: any[], ma
           <div className="flex justify-center gap-6 text-ctp-subtext0">
             <SimpleIcon name="siCloudflare" className="w-6 h-6 hover:text-ctp-mauve transition-colors" />
             <SimpleIcon name="siGithub" className="w-6 h-6 hover:text-ctp-mauve transition-colors" />
+            <SimpleIcon name="siDiscord" className="w-6 h-6 hover:text-ctp-mauve transition-colors" />
             <SimpleIcon name="siTailwindcss" className="w-6 h-6 hover:text-ctp-mauve transition-colors" />
           </div>
           <div className="text-ctp-subtext0 text-xs font-bold tracking-[0.3em] uppercase">
@@ -659,7 +669,7 @@ export function renderServiceDetailPage(service: any, history: any[], incidents:
   const description = `Current status: ${latest.status.toUpperCase()} | Uptime: ${uptime}%`;
 
   return '<!DOCTYPE html>' + render(
-    <Layout title={`${service.name} - Detailed Status`} description={description} color={serviceColorHex}>      <div className="max-w-6xl mx-auto p-5 sm:p-10">
+    <Layout title={`${service.name} - Detailed Status`} description={description} color={serviceColorHex} badgeService={service.name}>      <div className="max-w-6xl mx-auto p-5 sm:p-10">
         <a href="/" className="inline-flex items-center gap-2 mb-8 text-ctp-overlay0 no-underline text-sm font-bold uppercase tracking-widest hover:text-ctp-mauve transition-all group">
           <Activity size={16} className="group-hover:-translate-x-1 transition-transform" /> Back to Dashboard
         </a>
@@ -776,6 +786,7 @@ export function renderServiceDetailPage(service: any, history: any[], incidents:
           <div className="flex justify-center gap-6 text-ctp-subtext0">
             <SimpleIcon name="siCloudflare" className="w-6 h-6 hover:text-ctp-mauve transition-colors" />
             <SimpleIcon name="siGithub" className="w-6 h-6 hover:text-ctp-mauve transition-colors" />
+            <SimpleIcon name="siDiscord" className="w-6 h-6 hover:text-ctp-mauve transition-colors" />
             <SimpleIcon name="siTailwindcss" className="w-6 h-6 hover:text-ctp-mauve transition-colors" />
           </div>
           <div className="text-ctp-subtext0 text-xs font-bold tracking-[0.3em] uppercase">

@@ -15,6 +15,7 @@ interface Env {
   MAILGUN_DOMAIN?: string;
   MAILGUN_FROM?: string;
   NOTIFICATION_EMAIL?: string;
+  DISCORD_WEBHOOK_URL?: string;
 }
 
 interface Service {
@@ -135,6 +136,9 @@ async function performHealthCheck(env: Env, service: Service) {
       const subject = `[StatusFlare] ${service.name} is ${status.toUpperCase()}`;
       const text = `Service: ${service.name}\nStatus: ${status.toUpperCase()}\nPrevious Status: ${previousStatus.toUpperCase()}\nHTTP Code: ${statusCode}\nTime: ${new Date().toISOString()}\n\nDetails:\n${responseSnippet}`;
       await sendEmail(env, subject, text);
+      
+      const discordColor = status === 'up' ? 0x57F287 : 0xED4245;
+      await sendDiscordNotification(env, subject, text, discordColor);
     }
   }
 }
@@ -166,6 +170,30 @@ async function hashPassword(password: string): Promise<string> {
   const hashBuffer = await crypto.subtle.digest('SHA-256', msgUint8);
   const hashArray = Array.from(new Uint8Array(hashBuffer));
   return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+async function sendDiscordNotification(env: Env, title: string, description: string, color: number = 0x5865F2) {
+  if (!env.DISCORD_WEBHOOK_URL) return;
+
+  const body = {
+    embeds: [{
+      title,
+      description,
+      color,
+      timestamp: new Date().toISOString(),
+      footer: { text: "StatusFlare Monitoring" }
+    }]
+  };
+
+  try {
+    await fetch(env.DISCORD_WEBHOOK_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+  } catch (e: any) {
+    console.error(`[Discord] Webhook error: ${e.message}`);
+  }
 }
 
 async function sendEmail(env: Env, subject: string, text: string) {
@@ -489,6 +517,7 @@ export default {
         }
 
         await sendEmail(env, `[StatusFlare] NEW INCIDENT: ${title}`, `Incident: ${title}\nAffected Service: ${serviceName}\nMessage: ${message}\nTime: ${new Date().toISOString()}`);
+        await sendDiscordNotification(env, `🚨 NEW INCIDENT: ${title}`, `**Affected Service:** ${serviceName}\n**Message:** ${message}`, 0xFEE75C);
         
         return new Response(null, { status: 302, headers: { 'Location': '/admin' } });
       }
@@ -503,7 +532,10 @@ export default {
           .bind(id).run();
 
         if (incident) {
-          await sendEmail(env, `[StatusFlare] RESOLVED: ${incident.title}`, `Incident "${incident.title}" for ${incident.service_name || 'System Wide'} has been resolved.\nTime: ${new Date().toISOString()}`);
+          const subject = `[StatusFlare] RESOLVED: ${incident.title}`;
+          const text = `Incident "${incident.title}" for ${incident.service_name || 'System Wide'} has been resolved.\nTime: ${new Date().toISOString()}`;
+          await sendEmail(env, subject, text);
+          await sendDiscordNotification(env, `✅ RESOLVED: ${incident.title}`, `The incident for **${incident.service_name || 'System Wide'}** has been resolved.`, 0x57F287);
         }
 
         return new Response(null, { status: 302, headers: { 'Location': '/admin' } });
