@@ -1,21 +1,21 @@
 import { render } from 'preact-render-to-string';
 import { 
-  LuActivity, 
-  LuShieldCheck, 
-  LuTriangleAlert, 
-  LuTrash2, 
-  LuPlus, 
-  LuLogOut, 
-  LuExternalLink, 
-  LuClock, 
-  LuCircleCheck, 
-  LuCircleX, 
-  LuHistory,
-  LuMoon,
-  LuSun,
-  LuLayoutDashboard,
-  LuServer
-} from 'react-icons/lu';
+  Activity, 
+  ShieldCheck, 
+  TriangleAlert, 
+  Trash2, 
+  Plus, 
+  LogOut, 
+  ExternalLink, 
+  Clock, 
+  CircleCheck, 
+  CircleX, 
+  History,
+  Moon,
+  Sun,
+  LayoutDashboard,
+  Server
+} from 'lucide-preact';
 import * as simpleIcons from 'simple-icons';
 
 const themeScript = `
@@ -151,7 +151,7 @@ function ParsedData({ snippet }: { snippet: string }) {
       if (isHealthWord) {
         return (
           <span className={`${colorClass} font-bold uppercase text-[0.7rem] flex items-center gap-1`}>
-            {lower === 'pass' || lower === 'up' || lower === 'ok' || lower === 'healthy' ? <LuCircleCheck size={12} /> : <LuCircleX size={12} />}
+            {lower === 'pass' || lower === 'up' || lower === 'ok' || lower === 'healthy' ? <CircleCheck size={12} /> : <CircleX size={12} />}
             {s}
           </span>
         );
@@ -177,8 +177,8 @@ function Layout({ title, children }: { title: string; children: any }) {
       </head>
       <body className="bg-ctp-base text-ctp-text font-mono min-h-screen w-full selection:bg-ctp-mauve/30">
         <button id="theme-toggle" className="fixed top-5 right-5 bg-ctp-mantle border border-ctp-surface0 text-ctp-text w-10 h-10 rounded-full cursor-pointer flex items-center justify-center shadow-lg z-50 hover:bg-ctp-surface0 transition-all hover:scale-110 active:scale-95" title="Toggle Theme">
-          <LuSun className="hidden latte:block" size={20} />
-          <LuMoon className="hidden mocha:block" size={20} />
+          <Sun className="hidden latte:block" size={20} />
+          <Moon className="hidden mocha:block" size={20} />
         </button>
         {children}
       </body>
@@ -194,12 +194,12 @@ export function renderAdminPage(services: any[], activeIncidents: any[], error?:
           <div className="bg-ctp-mantle p-10 rounded-xl w-full max-w-md shadow-xl border border-ctp-surface0">
             <div className="flex justify-center mb-6">
               <div className="p-4 rounded-full bg-ctp-mauve/10 text-ctp-mauve">
-                <LuShieldCheck size={48} />
+                <ShieldCheck size={48} />
               </div>
             </div>
             <h2 className="mt-0 text-center mb-6 text-2xl font-bold">Admin Login</h2>
             {error && <div className="text-ctp-red text-sm text-center mb-4 flex items-center justify-center gap-2">
-              <LuTriangleAlert size={16} /> {error}
+              <TriangleAlert size={16} /> {error}
             </div>}
             
             <a href="/admin/login/oidc" className="flex items-center justify-center gap-2 w-full py-3.5 px-4 rounded-lg bg-ctp-mauve text-ctp-crust text-center no-underline font-bold text-lg border-none transition-transform hover:scale-[1.02] active:scale-[0.98]">
@@ -212,7 +212,7 @@ export function renderAdminPage(services: any[], activeIncidents: any[], error?:
               <form method="POST" action="/admin/login" className="mt-4 space-y-3">
                 <input type="password" name="password" placeholder="Admin Password" className="w-full p-3 rounded-lg border border-ctp-surface0 bg-ctp-base text-ctp-text box-border focus:ring-2 focus:ring-ctp-mauve focus:outline-none transition-all" required />
                 <button type="submit" className="w-full p-3 rounded-lg border-none bg-ctp-surface1 text-ctp-text font-bold cursor-pointer hover:bg-ctp-surface2 transition-colors flex items-center justify-center gap-2">
-                  <LuClock size={18} />
+                  <Clock size={18} />
                   Login
                 </button>
               </form>
@@ -228,11 +228,11 @@ export function renderAdminPage(services: any[], activeIncidents: any[], error?:
       <div className="p-5 sm:p-10 max-w-7xl mx-auto">
         <header className="flex justify-between items-center mb-10">
           <div className="flex items-center gap-3">
-            <LuLayoutDashboard className="text-ctp-mauve" size={28} />
+            <LayoutDashboard className="text-ctp-mauve" size={28} />
             <h1 className="m-0 text-2xl font-bold text-ctp-mauve">StatusFlare Admin</h1>
           </div>
           <a href="/admin/logout" className="flex items-center gap-2 text-ctp-overlay0 no-underline text-sm border border-ctp-surface0 px-3 py-1.5 rounded-lg hover:bg-ctp-surface0 hover:text-ctp-red transition-all group">
-            <LuLogOut size={16} className="group-hover:scale-110 transition-transform" />
+            <LogOut size={16} className="group-hover:scale-110 transition-transform" />
             Logout
           </a>
         </header>
@@ -240,7 +240,7 @@ export function renderAdminPage(services: any[], activeIncidents: any[], error?:
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
           <div className="bg-ctp-mantle p-6 rounded-xl border border-ctp-surface0 shadow-lg">
             <h2 className="mt-0 text-base mb-5 text-ctp-overlay0 uppercase tracking-widest font-bold flex items-center gap-2">
-              <LuPlus size={18} /> Add New Service
+              <Plus size={18} /> Add New Service
             </h2>
             <form method="POST" action="/admin/add" className="space-y-4">
               <div className="grid grid-cols-2 gap-3">
@@ -297,7 +297,7 @@ export function renderAdminPage(services: any[], activeIncidents: any[], error?:
                 <textarea name="token_body" rows={2} placeholder='{"username": "...", "password": "..."}' className="w-full p-3 rounded-lg border border-ctp-surface0 bg-ctp-base text-ctp-text text-sm focus:ring-2 focus:ring-ctp-mauve focus:outline-none transition-all resize-none"></textarea>
               </div>
               <button type="submit" className="w-full py-3.5 px-5 rounded-lg border-none bg-ctp-mauve text-ctp-crust font-bold cursor-pointer hover:opacity-90 transition-all hover:shadow-lg active:scale-95 flex items-center justify-center gap-2">
-                <LuPlus size={20} />
+                <Plus size={20} />
                 Add Service
               </button>
             </form>
@@ -305,7 +305,7 @@ export function renderAdminPage(services: any[], activeIncidents: any[], error?:
 
           <div className="bg-ctp-mantle p-6 rounded-xl border border-ctp-surface0 shadow-lg">
             <h2 className="mt-0 text-base mb-5 text-ctp-overlay0 uppercase tracking-widest font-bold flex items-center gap-2 text-ctp-red">
-              <LuTriangleAlert size={18} /> Report Incident
+              <TriangleAlert size={18} /> Report Incident
             </h2>
             <form method="POST" action="/admin/incidents/create" className="space-y-4">
               <div className="grid grid-cols-2 gap-3">
@@ -326,7 +326,7 @@ export function renderAdminPage(services: any[], activeIncidents: any[], error?:
                 <textarea name="message" rows={2} placeholder="Describe the issue..." className="w-full p-3 rounded-lg border border-ctp-surface0 bg-ctp-base text-ctp-text text-sm focus:ring-2 focus:ring-ctp-red focus:outline-none transition-all resize-none" required></textarea>
               </div>
               <button type="submit" className="w-full py-3.5 px-5 rounded-lg border-none bg-ctp-red text-ctp-crust font-bold cursor-pointer hover:opacity-90 transition-all hover:shadow-lg active:scale-95 flex items-center justify-center gap-2">
-                <LuTriangleAlert size={20} />
+                <TriangleAlert size={20} />
                 Post Incident
               </button>
             </form>
@@ -335,7 +335,7 @@ export function renderAdminPage(services: any[], activeIncidents: any[], error?:
 
         <div className="bg-ctp-mantle p-6 rounded-xl border border-ctp-surface0 shadow-lg mb-6 overflow-hidden">
           <h2 className="mt-0 text-base mb-5 text-ctp-overlay0 uppercase tracking-widest font-bold flex items-center gap-2">
-            <LuActivity size={18} className="text-ctp-green" /> Active Incidents
+            <Activity size={18} className="text-ctp-green" /> Active Incidents
           </h2>
           <div className="overflow-x-auto">
             <table className="w-full border-collapse">
@@ -354,12 +354,12 @@ export function renderAdminPage(services: any[], activeIncidents: any[], error?:
                   <tr className="border-b border-ctp-surface0 last:border-b-0 hover:bg-ctp-base/50 transition-colors">
                     <td className="p-4 text-sm font-bold text-ctp-red">{i.title}</td>
                     <td className="p-4 text-sm flex items-center gap-2">
-                      <LuServer size={14} className="text-ctp-overlay0" />
+                      <Server size={14} className="text-ctp-overlay0" />
                       {i.service_name || 'System Wide'}
                     </td>
                     <td className="p-4 text-sm text-ctp-overlay0">
                       <div className="flex items-center gap-1.5">
-                        <LuClock size={14} />
+                        <Clock size={14} />
                         {new Date(i.created_at + (i.created_at.endsWith('Z') ? '' : 'Z')).toLocaleString()}
                       </div>
                     </td>
@@ -367,7 +367,7 @@ export function renderAdminPage(services: any[], activeIncidents: any[], error?:
                       <form method="POST" action="/admin/incidents/resolve" className="inline">
                         <input type="hidden" name="id" value={i.id} />
                         <button type="submit" className="px-3 py-1.5 rounded-lg bg-ctp-green/20 text-ctp-green border border-ctp-green text-xs font-bold hover:bg-ctp-green/30 transition-all active:scale-95 flex items-center gap-1.5 ml-auto">
-                          <LuCircleCheck size={14} /> Resolve
+                          <CircleCheck size={14} /> Resolve
                         </button>
                       </form>
                     </td>
@@ -380,7 +380,7 @@ export function renderAdminPage(services: any[], activeIncidents: any[], error?:
 
         <div className="bg-ctp-mantle p-6 rounded-xl border border-ctp-surface0 shadow-lg overflow-hidden">
           <h2 className="mt-0 text-base mb-5 text-ctp-overlay0 uppercase tracking-widest font-bold flex items-center gap-2">
-            <LuServer size={18} className="text-ctp-mauve" /> Existing Services
+            <Server size={18} className="text-ctp-mauve" /> Existing Services
           </h2>
           <div className="overflow-x-auto">
             <table className="w-full border-collapse">
@@ -408,7 +408,7 @@ export function renderAdminPage(services: any[], activeIncidents: any[], error?:
                       <form method="POST" action="/admin/remove" className="inline">
                         <input type="hidden" name="id" value={s.id} />
                         <button type="submit" className="px-3 py-1.5 rounded-lg bg-ctp-red/10 text-ctp-red border border-ctp-red/20 text-xs font-bold hover:bg-ctp-red hover:text-ctp-crust transition-all active:scale-95 flex items-center gap-1.5 ml-auto" {...({ onclick: "return confirm('Remove this service?')" } as any)}>
-                          <LuTrash2 size={14} /> Remove
+                          <Trash2 size={14} /> Remove
                         </button>
                       </form>
                     </td>
@@ -448,11 +448,11 @@ export function renderStatusPage(services: any[], historicalIncidents: any[], ma
       <div className="max-w-4xl mx-auto px-5 py-10">
         <header className="mb-10 text-center space-y-2">
           <div className="inline-flex items-center justify-center p-3 bg-ctp-mauve/10 rounded-2xl mb-2">
-            <LuActivity className="text-ctp-mauve" size={40} />
+            <Activity className="text-ctp-mauve" size={40} />
           </div>
           <h1 className="text-5xl font-bold tracking-tight text-ctp-text">Status<span className="text-ctp-mauve">Flare</span></h1>
           <p className="text-ctp-overlay0 text-lg flex items-center justify-center gap-2">
-            <LuShieldCheck size={18} /> Real-time system health monitoring
+            <ShieldCheck size={18} /> Real-time system health monitoring
           </p>
         </header>
 
@@ -464,18 +464,18 @@ export function renderStatusPage(services: any[], historicalIncidents: any[], ma
         {manualIncidents.length > 0 && (
           <div className="mb-12">
             <div className="text-sm mb-4 text-ctp-red uppercase tracking-[0.2em] font-bold flex items-center gap-2">
-              <LuTriangleAlert size={16} /> Active Incidents
+              <TriangleAlert size={16} /> Active Incidents
             </div>
             <div className="border border-ctp-red rounded-2xl overflow-hidden shadow-xl bg-ctp-mantle">
               {manualIncidents.map(i => (
                 <div className="p-6 border-b border-ctp-surface0 last:border-b-0 bg-ctp-red/5">
                   <h4 className="text-ctp-red m-0 font-bold text-xl flex items-center gap-2">
-                    <LuTriangleAlert size={20} />
+                    <TriangleAlert size={20} />
                     {i.title} {i.service_name ? <span className="text-ctp-overlay0 text-base font-normal">({i.service_name})</span> : ''}
                   </h4>
                   <p className="text-ctp-text my-3 text-base leading-relaxed">{i.message}</p>
                   <div className="text-xs text-ctp-overlay0 flex items-center gap-1.5 uppercase font-bold tracking-wider">
-                    <LuClock size={12} /> Started: {new Date(i.created_at + (i.created_at.endsWith('Z') ? '' : 'Z')).toLocaleString()}
+                    <Clock size={12} /> Started: {new Date(i.created_at + (i.created_at.endsWith('Z') ? '' : 'Z')).toLocaleString()}
                   </div>
                 </div>
               ))}
@@ -484,7 +484,7 @@ export function renderStatusPage(services: any[], historicalIncidents: any[], ma
         )}
 
         <div className="text-sm mb-4 text-ctp-overlay0 uppercase tracking-[0.2em] font-bold flex items-center gap-2">
-          <LuServer size={16} /> Current Status
+          <Server size={16} /> Current Status
         </div>
         <div className="flex flex-col gap-5">
           {services.map(s => {
@@ -516,7 +516,7 @@ export function renderStatusPage(services: any[], historicalIncidents: any[], ma
                 </div>
                 <div className="px-6 py-3 bg-ctp-crust/50 border-t border-ctp-surface0/30 flex justify-end">
                   <span className="text-ctp-mauve text-[0.7rem] uppercase font-bold tracking-widest flex items-center gap-1 group-hover:gap-2 transition-all">
-                    View Analytics <LuExternalLink size={10} />
+                    View Analytics <ExternalLink size={10} />
                   </span>
                 </div>
               </div>
@@ -525,19 +525,19 @@ export function renderStatusPage(services: any[], historicalIncidents: any[], ma
         </div>
 
         <div className="text-sm mb-4 mt-12 text-ctp-overlay0 uppercase tracking-[0.2em] font-bold flex items-center gap-2">
-          <LuHistory size={16} /> Historical Outages
+          <History size={16} /> Historical Outages
         </div>
         <div className="border border-ctp-surface0 rounded-2xl overflow-hidden bg-ctp-mantle shadow-lg">
           {historicalIncidents.length === 0 ? (
             <div className="p-12 text-ctp-green text-center flex flex-col items-center gap-3">
-              <LuCircleCheck size={32} />
+              <CircleCheck size={32} />
               <span className="font-bold tracking-wider uppercase text-sm">No recent outages reported.</span>
             </div>
           ) : historicalIncidents.map(incident => (
             <div className="p-5 px-6 border-b border-ctp-surface0 last:border-b-0 flex justify-between items-center gap-4 hover:bg-ctp-base/30 transition-colors">
               <div className="flex items-center gap-4">
                 <div className="p-2 bg-ctp-red/10 rounded-lg">
-                  <LuCircleX className="text-ctp-red" size={20} />
+                  <CircleX className="text-ctp-red" size={20} />
                 </div>
                 <div>
                   <h4 className="m-0 text-ctp-red font-bold">{incident.name}</h4>
@@ -545,7 +545,7 @@ export function renderStatusPage(services: any[], historicalIncidents: any[], ma
                 </div>
               </div>
               <div className="text-xs text-ctp-overlay0 whitespace-nowrap font-medium flex items-center gap-1.5">
-                <LuClock size={12} />
+                <Clock size={12} />
                 {new Date(incident.timestamp + (incident.timestamp.endsWith('Z') ? '' : 'Z')).toLocaleString()}
               </div>
             </div>
@@ -582,7 +582,7 @@ export function renderServiceDetailPage(service: any, history: any[], incidents:
     <Layout title={`${service.name} - Detailed Status`}>
       <div className="max-w-6xl mx-auto p-5 sm:p-10">
         <a href="/" className="inline-flex items-center gap-2 mb-8 text-ctp-overlay0 no-underline text-sm font-bold uppercase tracking-widest hover:text-ctp-mauve transition-all group">
-          <LuActivity size={16} className="group-hover:-translate-x-1 transition-transform" /> Back to Dashboard
+          <Activity size={16} className="group-hover:-translate-x-1 transition-transform" /> Back to Dashboard
         </a>
         
         <div className="bg-ctp-mantle rounded-2xl p-10 border border-ctp-surface0 mb-8 flex justify-between items-center flex-wrap gap-8 shadow-2xl relative overflow-hidden">
@@ -592,7 +592,7 @@ export function renderServiceDetailPage(service: any, history: any[], incidents:
           <div className="flex-1 min-w-[300px] relative z-10">
             <h1 className="m-0 text-4xl font-bold tracking-tight">{service.name}</h1>
             <p className="m-0 mt-3 text-ctp-overlay0 flex items-center gap-2 text-lg">
-              <LuExternalLink size={18} /> {service.url}{service.health_endpoint}
+              <ExternalLink size={18} /> {service.url}{service.health_endpoint}
             </p>
           </div>
           <div className={`px-8 py-4 rounded-2xl text-xl font-bold uppercase tracking-widest flex items-center gap-3 relative z-10 ${latest.status === 'up' ? 'bg-ctp-green/10 text-ctp-green border-2 border-ctp-green/20' : 'bg-ctp-red/10 text-ctp-red border-2 border-ctp-red/20'}`}>
@@ -604,19 +604,19 @@ export function renderServiceDetailPage(service: any, history: any[], incidents:
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
           <div className="bg-ctp-mantle p-8 rounded-2xl border border-ctp-surface0 shadow-lg hover:border-ctp-mauve transition-colors">
             <div className="text-[0.7rem] uppercase text-ctp-overlay0 font-bold tracking-[0.2em] mb-3 flex items-center gap-2">
-              <LuShieldCheck size={14} className="text-ctp-green" /> Uptime (Recent)
+              <ShieldCheck size={14} className="text-ctp-green" /> Uptime (Recent)
             </div>
             <div className="text-4xl font-bold text-ctp-mauve">{uptime}%</div>
           </div>
           <div className="bg-ctp-mantle p-8 rounded-2xl border border-ctp-surface0 shadow-lg hover:border-ctp-mauve transition-colors">
             <div className="text-[0.7rem] uppercase text-ctp-overlay0 font-bold tracking-[0.2em] mb-3 flex items-center gap-2">
-              <LuActivity size={14} className="text-ctp-mauve" /> Avg. Latency
+              <Activity size={14} className="text-ctp-mauve" /> Avg. Latency
             </div>
             <div className="text-4xl font-bold text-ctp-mauve">{history.length > 0 ? (history.reduce((a, b) => a + b.latency_ms, 0) / history.length).toFixed(0) : 0}ms</div>
           </div>
           <div className="bg-ctp-mantle p-8 rounded-2xl border border-ctp-surface0 shadow-lg hover:border-ctp-mauve transition-colors">
             <div className="text-[0.7rem] uppercase text-ctp-overlay0 font-bold tracking-[0.2em] mb-3 flex items-center gap-2">
-              <LuClock size={14} /> Last Checked
+              <Clock size={14} /> Last Checked
             </div>
             <div className="text-lg font-bold text-ctp-mauve uppercase tracking-tight">{lastChecked}</div>
           </div>
@@ -624,7 +624,7 @@ export function renderServiceDetailPage(service: any, history: any[], incidents:
 
         <div className="bg-ctp-mantle rounded-2xl border border-ctp-surface0 p-8 mb-12 shadow-xl">
           <h2 className="m-0 mb-6 text-sm text-ctp-overlay0 uppercase tracking-[0.3em] font-bold flex items-center gap-2">
-            <LuCircleCheck size={18} className="text-ctp-green" /> Latest Health Details
+            <CircleCheck size={18} className="text-ctp-green" /> Latest Health Details
           </h2>
           <div className="mb-4 font-mono text-xl font-bold text-ctp-mauve bg-ctp-base/50 p-4 rounded-xl border border-ctp-surface0 w-fit">
             HTTP {latest.status_code || 'Error'}
@@ -637,7 +637,7 @@ export function renderServiceDetailPage(service: any, history: any[], incidents:
         {incidents.length > 0 && (
           <div className="mb-12">
             <div className="text-sm mb-4 text-ctp-red uppercase tracking-[0.2em] font-bold flex items-center gap-2">
-              <LuTriangleAlert size={16} /> Active Incidents
+              <TriangleAlert size={16} /> Active Incidents
             </div>
             <div className="border-2 border-ctp-red rounded-2xl overflow-hidden bg-ctp-red/5 shadow-2xl">
               {incidents.map(i => (
@@ -645,7 +645,7 @@ export function renderServiceDetailPage(service: any, history: any[], incidents:
                   <h4 className="m-0 text-ctp-red font-bold text-2xl">{i.title}</h4>
                   <p className="my-4 text-ctp-text text-lg leading-relaxed">{i.message}</p>
                   <div className="text-xs text-ctp-overlay0 flex items-center gap-2 uppercase tracking-widest font-bold">
-                    <LuClock size={14} /> Started: {new Date(i.created_at + (i.created_at.endsWith('Z') ? '' : 'Z')).toLocaleString()}
+                    <Clock size={14} /> Started: {new Date(i.created_at + (i.created_at.endsWith('Z') ? '' : 'Z')).toLocaleString()}
                   </div>
                 </div>
               ))}
@@ -654,7 +654,7 @@ export function renderServiceDetailPage(service: any, history: any[], incidents:
         )}
 
         <div className="text-sm mb-4 text-ctp-overlay0 uppercase tracking-[0.2em] font-bold flex items-center gap-2">
-          <LuHistory size={16} /> Recent Health Checks
+          <History size={16} /> Recent Health Checks
         </div>
         <div className="bg-ctp-mantle rounded-2xl border border-ctp-surface0 overflow-hidden shadow-2xl mb-12">
           <div className="overflow-x-auto">
@@ -672,7 +672,7 @@ export function renderServiceDetailPage(service: any, history: any[], incidents:
                   <tr className="border-b border-ctp-surface0 last:border-b-0 hover:bg-ctp-base/50 transition-colors">
                     <td className="p-6 text-sm whitespace-nowrap text-ctp-overlay0">
                       <div className="flex items-center gap-2">
-                        <LuClock size={14} /> {new Date(h.timestamp + (h.timestamp.endsWith('Z') ? '' : 'Z')).toLocaleString()}
+                        <Clock size={14} /> {new Date(h.timestamp + (h.timestamp.endsWith('Z') ? '' : 'Z')).toLocaleString()}
                       </div>
                     </td>
                     <td className="p-6">
