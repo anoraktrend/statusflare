@@ -1,232 +1,13 @@
-import { renderStatusPage, renderAdminPage, renderServiceDetailPage } from './template';
+import { renderStatusPage } from './pages/StatusPage';
+import { renderAdminPage } from './pages/AdminPage';
+import { renderServiceDetailPage } from './pages/ServiceDetailPage';
+import { Env, Service } from './types';
+import { isAuthenticated, hashPassword } from './utils/auth';
+import { performHealthCheck } from './services/checker';
+import { sendEmail, sendDiscordNotification } from './utils/notifications';
 // @ts-ignore
 import sanitize from 'sanitize';
 import * as jose from 'jose';
-
-interface Env {
-  status_db: D1Database;
-  ADMIN_PASSWORD_HASH?: string;
-  AUTHELIA_ISSUER: string;
-  AUTHELIA_CLIENT_ID: string;
-  AUTHELIA_CLIENT_SECRET: string;
-  OIDC_REDIRECT_URI: string;
-  SESSION_SECRET: string;
-  MAILGUN_API_KEY?: string;
-  MAILGUN_DOMAIN?: string;
-  MAILGUN_FROM?: string;
-  NOTIFICATION_EMAIL?: string;
-  DISCORD_WEBHOOK_URL?: string;
-}
-
-interface Service {
-  id: number;
-  name: string;
-  url: string;
-  health_endpoint: string;
-  method?: string;
-  headers_json?: string;
-  body?: string;
-  token_url?: string;
-  token_body?: string;
-  token_response_path?: string;
-  icon?: string;
-}
-
-async function getCachedToken(db: D1Database, service: Service): Promise<{token: string | null, error?: string}> {
-  if (!service.token_url || !service.token_body) return {token: null};
-  const cacheKey = `token_${service.id}`;
-  
-  const cached = await db.prepare('SELECT value FROM kv_cache WHERE key = ? AND expires_at > CURRENT_TIMESTAMP').bind(cacheKey).first<{value: string}>();
-  if (cached) return {token: cached.value};
-
-  try {
-    const res = await fetch(service.token_url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'User-Agent': 'StatusFlare/1.0' },
-      body: service.token_body
-    });
-    if (!res.ok) {
-      const errText = await res.text();
-      return {token: null, error: `Auth API ${res.status}: ${errText.slice(0, 50)}`};
-    }
-    const data = await res.json() as any;
-    const token = service.token_response_path ? data[service.token_response_path] : data.token;
-    
-    if (token) {
-      await db.prepare('INSERT OR REPLACE INTO kv_cache (key, value, expires_at) VALUES (?, ?, datetime("now", "+12 hours"))')
-        .bind(cacheKey, token).run();
-      return {token};
-    }
-    return {token: null, error: 'Token not found in response JSON'};
-  } catch (e: any) {
-    return {token: null, error: `Auth Fetch Error: ${e.message}`};
-  }
-}
-
-async function performHealthCheck(env: Env, service: Service) {
-  const db = env.status_db;
-  const start = Date.now();
-  let status: 'up' | 'down' = 'down';
-  let statusCode: number | null = null;
-  let responseSnippet: string | null = null;
-
-  // Get previous status to detect changes
-  const lastCheck = await db.prepare('SELECT status FROM health_checks WHERE service_id = ? ORDER BY timestamp DESC LIMIT 1').bind(service.id).first<{status: string}>();
-  const previousStatus = lastCheck ? lastCheck.status : 'unknown';
-
-  try {
-    const baseUrl = service.url.replace(/\/$/, '');
-    const endpoint = service.health_endpoint.startsWith('/') ? service.health_endpoint : `/${service.health_endpoint}`;
-    const fullUrl = `${baseUrl}${endpoint}`;
-
-    let token: string | null = null;
-    if (service.token_url) {
-      const authResult = await getCachedToken(db, service);
-      token = authResult.token;
-      if (!token) {
-        throw new Error(authResult.error || 'Failed to acquire auth token');
-      }
-    }
-
-    const headers: Record<string, string> = { 'User-Agent': 'StatusFlare/1.0' };
-    if (service.headers_json) {
-      try {
-        let headersStr = service.headers_json;
-        if (token) {
-          headersStr = headersStr.replace(/{{TOKEN}}/g, token);
-        }
-        const customHeaders = JSON.parse(headersStr);
-        Object.assign(headers, customHeaders);
-      } catch (e) {
-        console.error(`[HealthCheck] Failed to parse headers for ${service.name}:`, e);
-      }
-    }
-
-    const response = await fetch(fullUrl, {
-      method: service.method || 'GET',
-      headers,
-      body: service.body || null,
-      signal: AbortSignal.timeout(10000),
-    });
-
-    status = response.ok ? 'up' : 'down';
-    statusCode = response.status;
-    const text = await response.text();
-    
-    try {
-      // Try to parse as JSON and format it nicely
-      const json = JSON.parse(text);
-      responseSnippet = JSON.stringify(json, null, 2).slice(0, 1000); // Allow larger snippet for JSON
-    } catch {
-      // Fallback to raw text
-      responseSnippet = text.slice(0, 500);
-    }
-  } catch (error: any) {
-    status = 'down';
-    responseSnippet = error.message;
-  } finally {
-    const latency = Date.now() - start;
-    // Store raw snippet for storage
-    await db.prepare(
-      'INSERT INTO health_checks (service_id, status, status_code, response_snippet, latency_ms) VALUES (?, ?, ?, ?, ?)'
-    ).bind(service.id, status, statusCode, responseSnippet || '', latency).run();
-
-    // Send email alert on status change
-    if (status !== previousStatus && previousStatus !== 'unknown') {
-      const subject = `[StatusFlare] ${service.name} is ${status.toUpperCase()}`;
-      const text = `Service: ${service.name}\nStatus: ${status.toUpperCase()}\nPrevious Status: ${previousStatus.toUpperCase()}\nHTTP Code: ${statusCode}\nTime: ${new Date().toISOString()}\n\nDetails:\n${responseSnippet}`;
-      await sendEmail(env, subject, text);
-      
-      const discordColor = status === 'up' ? 0x57F287 : 0xED4245;
-      await sendDiscordNotification(env, subject, text, discordColor);
-    }
-  }
-}
-
-async function isAuthenticated(request: Request, env: Env) {
-  const cookieHeader = request.headers.get('Cookie') || '';
-  
-  const cookies = cookieHeader.split(';').reduce((acc, cookie) => {
-    const [name, ...value] = cookie.trim().split('=');
-    if (name) acc[name] = value.join('=');
-    return acc;
-  }, {} as Record<string, string>);
-  
-  const sessionToken = cookies['session'];
-  
-  if (!sessionToken) return false;
-  
-  try {
-    const secret = new TextEncoder().encode(env.SESSION_SECRET);
-    await jose.jwtVerify(sessionToken, secret);
-    return true;
-  } catch (e: any) {
-    return false;
-  }
-}
-
-async function hashPassword(password: string): Promise<string> {
-  const msgUint8 = new TextEncoder().encode(password);
-  const hashBuffer = await crypto.subtle.digest('SHA-256', msgUint8);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-}
-
-async function sendDiscordNotification(env: Env, title: string, description: string, color: number = 0x5865F2) {
-  if (!env.DISCORD_WEBHOOK_URL) return;
-
-  const body = {
-    embeds: [{
-      title,
-      description,
-      color,
-      timestamp: new Date().toISOString(),
-      footer: { text: "StatusFlare Monitoring" }
-    }]
-  };
-
-  try {
-    await fetch(env.DISCORD_WEBHOOK_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body)
-    });
-  } catch (e: any) {
-    console.error(`[Discord] Webhook error: ${e.message}`);
-  }
-}
-
-async function sendEmail(env: Env, subject: string, text: string) {
-  if (!env.MAILGUN_API_KEY || !env.MAILGUN_DOMAIN || !env.NOTIFICATION_EMAIL) {
-    console.warn('[Email] Skipping email send: Mailgun configuration missing');
-    return;
-  }
-
-  const from = env.MAILGUN_FROM || `StatusFlare <alerts@${env.MAILGUN_DOMAIN}>`;
-  const formData = new URLSearchParams();
-  formData.append('from', from);
-  formData.append('to', env.NOTIFICATION_EMAIL);
-  formData.append('subject', subject);
-  formData.append('text', text);
-
-  try {
-    const res = await fetch(`https://api.mailgun.net/v3/${env.MAILGUN_DOMAIN}/messages`, {
-      method: 'POST',
-      headers: {
-        'Authorization': 'Basic ' + btoa(`api:${env.MAILGUN_API_KEY}`),
-        'Content-Type': 'application/x-www-form-urlencoded'
-      },
-      body: formData.toString()
-    });
-
-    if (!res.ok) {
-      const errText = await res.text();
-      console.error(`[Email] Mailgun error ${res.status}: ${errText}`);
-    }
-  } catch (e: any) {
-    console.error(`[Email] Fetch error: ${e.message}`);
-  }
-}
 
 export default {
   async scheduled(controller: ScheduledController, env: Env, ctx: ExecutionContext) {
@@ -316,7 +97,7 @@ export default {
         'SELECT * FROM incidents WHERE service_id = ? AND status = "open" ORDER BY created_at DESC'
       ).bind(service.id).all();
 
-      return new Response(renderServiceDetailPage(service, history.results, incidents.results), {
+      return new Response(renderServiceDetailPage(service, history.results as any[], incidents.results as any[]), {
         headers: { 'Content-Type': 'text/html' },
       });
     }
@@ -541,10 +322,10 @@ export default {
         return new Response(null, { status: 302, headers: { 'Location': '/admin' } });
       }
 
-      const { results: services } = await env.status_db.prepare('SELECT * FROM services').all();
-      const { results: activeIncidents } = await env.status_db.prepare('SELECT i.*, s.name as service_name FROM incidents i LEFT JOIN services s ON i.service_id = s.id WHERE i.status = "open"').all();
+      const { results: services } = await env.status_db.prepare('SELECT * FROM services').all<Service>();
+      const { results: activeIncidents } = await env.status_db.prepare('SELECT i.*, s.name as service_name FROM incidents i LEFT JOIN services s ON i.service_id = s.id WHERE i.status = "open"').all<any>();
       
-      return new Response(renderAdminPage(services as any[], activeIncidents as any[], undefined, true, oidcConfigured), {
+      return new Response(renderAdminPage(services, activeIncidents, undefined, true, oidcConfigured), {
         headers: { 'Content-Type': 'text/html' },
       });
     }
