@@ -328,15 +328,35 @@ export default {
       `;
       const { results: manualIncidents } = await env.status_db.prepare(manualIncidentQuery).all();
 
+      const systemHistoryQuery = `
+        SELECT 
+          strftime('%Y-%m-%d %H:%M', timestamp) as timestamp,
+          CASE WHEN MIN(status) = 'down' THEN 'down' ELSE 'up' END as status,
+          CAST(AVG(latency_ms) AS INTEGER) as latency_ms
+        FROM health_checks
+        GROUP BY strftime('%Y-%m-%d %H:%M', timestamp)
+        ORDER BY timestamp DESC
+        LIMIT 30
+      `;
+      const { results: systemHistory } = await env.status_db.prepare(systemHistoryQuery).all();
+
+      const uptimeQuery = `
+        SELECT 
+          CAST(SUM(CASE WHEN status = 'up' THEN 1 ELSE 0 END) AS REAL) / COUNT(*) * 100 as uptime
+        FROM health_checks
+      `;
+      const { results: uptimeResult } = await env.status_db.prepare(uptimeQuery).all<{uptime: number}>();
+      const systemUptime = uptimeResult[0]?.uptime ? uptimeResult[0].uptime.toFixed(2) : '100.00';
+
       if (path === '/api/status') {
-        return new Response(JSON.stringify({ services: servicesWithHistory, historicalIncidents, manualIncidents }, null, 2), {
+        return new Response(JSON.stringify({ services: servicesWithHistory, historicalIncidents, manualIncidents, system: { history: systemHistory, uptime: systemUptime } }, null, 2), {
           headers: { 
             'Content-Type': 'application/json',
             'Access-Control-Allow-Origin': '*'
           },
         });
       }
-      return new Response(renderStatusPage(servicesWithHistory, historicalIncidents as any[], manualIncidents as any[]), {
+      return new Response(renderStatusPage(servicesWithHistory, historicalIncidents as any[], manualIncidents as any[], { history: systemHistory as any[], uptime: systemUptime }), {
         headers: { 'Content-Type': 'text/html' },
       });
     }

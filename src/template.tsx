@@ -425,7 +425,7 @@ export function renderAdminPage(services: any[], activeIncidents: any[], error?:
   );
 }
 
-export function renderStatusPage(services: any[], historicalIncidents: any[], manualIncidents: any[]) {
+export function renderStatusPage(services: any[], historicalIncidents: any[], manualIncidents: any[], system?: { history: any[], uptime: string }) {
   const isAllUp = services.every(s => s.latest.status === 'up') && manualIncidents.length === 0;
   const overallStatusText = manualIncidents.length > 0 ? 'Active System Incident' : (isAllUp ? 'All Systems Operational' : 'Partial System Outage');
   const overallStatusColor = manualIncidents.length > 0 ? 'ctp-red' : (isAllUp ? 'ctp-green' : 'ctp-yellow');
@@ -458,10 +458,43 @@ export function renderStatusPage(services: any[], historicalIncidents: any[], ma
           </p>
         </header>
 
-        <div className={`p-6 rounded-2xl bg-ctp-${overallStatusColor}/15 border-2 border-ctp-${overallStatusColor} text-ctp-${overallStatusColor} font-bold text-2xl flex items-center justify-center gap-4 mb-12 animate-pulse-custom shadow-lg`} style={{ '--pulse-color': `color-mix(in srgb, var(--color-${overallStatusColor}) 40%, transparent)` }}>
+        <div className={`p-6 rounded-2xl bg-ctp-${overallStatusColor}/15 border-2 border-ctp-${overallStatusColor} text-ctp-${overallStatusColor} font-bold text-2xl flex items-center justify-center gap-4 mb-8 animate-pulse-custom shadow-lg`} style={{ '--pulse-color': `color-mix(in srgb, var(--color-${overallStatusColor}) 40%, transparent)` }}>
           <SvgDot status={isAllUp ? 'up' : 'down'} size={28} />
           {overallStatusText}
         </div>
+
+        {system && (
+          <div className="mb-12 flex flex-col gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+              <div className="bg-ctp-mantle p-6 rounded-2xl border border-ctp-surface0 shadow-lg flex flex-col justify-center">
+                <div className="text-[0.7rem] uppercase text-ctp-overlay0 font-bold tracking-[0.2em] mb-2 flex items-center gap-2">
+                  <ShieldCheck size={14} className="text-ctp-green" /> Overall Uptime
+                </div>
+                <div className="text-3xl font-bold text-ctp-mauve">{system.uptime}%</div>
+              </div>
+              <div className="bg-ctp-mantle p-6 rounded-2xl border border-ctp-surface0 shadow-lg flex flex-col justify-center">
+                <div className="text-[0.7rem] uppercase text-ctp-overlay0 font-bold tracking-[0.2em] mb-2 flex items-center gap-2">
+                  <Activity size={14} className="text-ctp-mauve" /> Avg. Latency
+                </div>
+                <div className="text-3xl font-bold text-ctp-mauve">{system.history.length > 0 ? (system.history.reduce((a, b) => a + b.latency_ms, 0) / system.history.length).toFixed(0) : 0}ms</div>
+              </div>
+            </div>
+            {system.history.length > 0 && (
+              <div className="bg-ctp-mantle p-6 rounded-2xl border border-ctp-surface0 shadow-lg">
+                <div className="text-[0.7rem] uppercase text-ctp-overlay0 font-bold tracking-[0.2em] mb-4 flex items-center gap-2">
+                  <History size={14} className="text-ctp-mauve" /> System History
+                </div>
+                <div className="flex gap-2 justify-between overflow-x-auto no-scrollbar mask-fade">
+                  {[...system.history].reverse().map((h: any) => (
+                    <div className="flex-none flex items-center justify-center transition-transform hover:scale-150 hover:z-10" title={`${new Date(h.timestamp + (h.timestamp.endsWith('Z') ? '' : 'Z')).toLocaleString()} - ${h.latency_ms}ms`}>
+                      <SvgDot status={h.status} size={16} />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         {manualIncidents.length > 0 && (
           <div className="mb-12">
