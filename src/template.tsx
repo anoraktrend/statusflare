@@ -175,13 +175,24 @@ function ParsedData({ snippet }: { snippet: string }) {
   }
 }
 
-function Layout({ title, children }: { title: string; children: any }) {
+function Layout({ title, description = "Real-time system health monitoring", color = "#cba6f7", children }: { title: string; description?: string; color?: string; children: any }) {
   return (
     <html lang="en" className="mocha">
       <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>{title}</title>
+        <meta name="description" content={description} />
+        
+        {/* Open Graph / Social Embeds */}
+        <meta property="og:title" content={title} />
+        <meta property="og:description" content={description} />
+        <meta property="og:type" content="website" />
+        <meta name="theme-color" content={color} />
+        <meta name="twitter:card" content="summary" />
+        <meta name="twitter:title" content={title} />
+        <meta name="twitter:description" content={description} />
+
         <link rel="stylesheet" href="/tailwind.css" />
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
@@ -443,21 +454,24 @@ export function renderStatusPage(services: any[], historicalIncidents: any[], ma
   let overallStatusText = 'All Systems Operational';
   let overallStatusColor = 'ctp-green';
   let overallStatusIcon = 'up';
+  let overallStatusHex = '#a6e3a1'; // Mocha Green
 
   if (hasManualIncident || allDown) {
     overallStatusText = hasManualIncident ? 'Active System Incident' : 'Major System Outage';
     overallStatusColor = 'ctp-red';
     overallStatusIcon = 'down';
+    overallStatusHex = '#f38ba8'; // Mocha Red
   } else if (!allUp) {
     overallStatusText = 'Partial System Outage';
     overallStatusColor = 'ctp-yellow';
     overallStatusIcon = 'degraded';
+    overallStatusHex = '#f9e2af'; // Mocha Yellow
   }
 
   const lastChecked = new Date().toLocaleString();
 
   return '<!DOCTYPE html>' + render(
-    <Layout title="StatusFlare - System Health">
+    <Layout title="StatusFlare - System Health" description={overallStatusText} color={overallStatusHex}>
       <meta http-equiv="refresh" content="60" />
       <style dangerouslySetInnerHTML={{ __html: `
         @keyframes pulse {
@@ -631,16 +645,21 @@ export function renderStatusPage(services: any[], historicalIncidents: any[], ma
 }
 
 export function renderServiceDetailPage(service: any, history: any[], incidents: any[]) {
-  const uptime = history.length > 0 
+  const uptime = history.length > 0
     ? ((history.filter(h => h.status === 'up').length / history.length) * 100).toFixed(2)
     : '0.00';
-  
+
   const latest = history[0] || { status: 'unknown', timestamp: new Date().toISOString() };
   const lastChecked = new Date(latest.timestamp + (latest.timestamp.endsWith('Z') ? '' : 'Z')).toLocaleString();
 
+  let serviceColorHex = '#a6e3a1'; // Mocha Green
+  if (latest.status === 'down') serviceColorHex = '#f38ba8'; // Mocha Red
+  else if (latest.status === 'unknown') serviceColorHex = '#6c7485'; // Gray
+
+  const description = `Current status: ${latest.status.toUpperCase()} | Uptime: ${uptime}%`;
+
   return '<!DOCTYPE html>' + render(
-    <Layout title={`${service.name} - Detailed Status`}>
-      <div className="max-w-6xl mx-auto p-5 sm:p-10">
+    <Layout title={`${service.name} - Detailed Status`} description={description} color={serviceColorHex}>      <div className="max-w-6xl mx-auto p-5 sm:p-10">
         <a href="/" className="inline-flex items-center gap-2 mb-8 text-ctp-overlay0 no-underline text-sm font-bold uppercase tracking-widest hover:text-ctp-mauve transition-all group">
           <Activity size={16} className="group-hover:-translate-x-1 transition-transform" /> Back to Dashboard
         </a>
