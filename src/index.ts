@@ -28,6 +28,7 @@ interface Service {
   token_url?: string;
   token_body?: string;
   token_response_path?: string;
+  icon?: string;
 }
 
 async function getCachedToken(db: D1Database, service: Service): Promise<{token: string | null, error?: string}> {
@@ -434,9 +435,10 @@ export default {
         const tokenUrl = sanitize.value(formData.get('token_url') as string, 'string') || null;
         const tokenBody = sanitize.value(formData.get('token_body') as string, 'string') || null;
         const tokenPath = sanitize.value(formData.get('token_response_path') as string, 'string') || null;
+        const icon = sanitize.value(formData.get('icon') as string, 'string') || null;
         
-        await env.status_db.prepare('INSERT INTO services (name, url, health_endpoint, method, headers_json, body, token_url, token_body, token_response_path) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
-          .bind(name, serviceUrl, endpoint, method, headersJson, body, tokenUrl, tokenBody, tokenPath).run();
+        await env.status_db.prepare('INSERT INTO services (name, url, health_endpoint, method, headers_json, body, token_url, token_body, token_response_path, icon) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+          .bind(name, serviceUrl, endpoint, method, headersJson, body, tokenUrl, tokenBody, tokenPath, icon).run();
         return new Response(null, { status: 302, headers: { 'Location': '/admin' } });
       }
 

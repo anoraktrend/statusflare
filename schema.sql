@@ -9,7 +9,8 @@ CREATE TABLE IF NOT EXISTS services (
   body TEXT,
   token_url TEXT,
   token_body TEXT,
-  token_response_path TEXT
+  token_response_path TEXT,
+  icon TEXT
 );
 
 -- Table for caching tokens (JWTs, etc)

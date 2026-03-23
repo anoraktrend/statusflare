@@ -3,43 +3,51 @@
     { 
       "name": "Seerr", 
       "url": "https://seerr.helltop.net", 
-      "healthEndpoint": "/api/v1/status" 
+      "healthEndpoint": "/api/v1/status",
+      "icon": "siPlex"
     },
     { 
       "name": "LDAP (lldap)", 
       "url": "https://ldap.helltop.net", 
       "healthEndpoint": "/",
-      "method": "GET"
+      "method": "GET",
+      "icon": "siLinuxserver"
     },
     { 
       "name": "Auth (Authelia)", 
       "url": "https://auth.helltop.net", 
-      "healthEndpoint": "/api/health" 
+      "healthEndpoint": "/api/health",
+      "icon": "siAuthelia"
     },
     { 
       "name": "Immich", 
       "url": "https://immich.helltop.net", 
-      "healthEndpoint": "/api/server/ping" 
+      "healthEndpoint": "/api/server/ping",
+      "icon": "siImmich"
     },
     { 
       "name": "Jellyfin", 
       "url": "https://jellyfin.helltop.net", 
-      "healthEndpoint": "/System/Info/Public" 
+      "healthEndpoint": "/System/Info/Public",
+      "icon": "siJellyfin"
     },
     { 
       "name": "Git (Forgejo)", 
       "url": "https://git.helltop.net", 
-      "healthEndpoint": "/api/healthz" 
+      "healthEndpoint": "/api/healthz",
+      "icon": "siForgejo"
     },
     { 
       "name": "Cloud (Nextcloud)", 
       "url": "https://cloud.helltop.net", 
-      "healthEndpoint": "/status.php" 
+      "healthEndpoint": "/status.php",
+      "icon": "siNextcloud"
     },
     { 
       "name": "Vaultwarden", 
       "url": "https://vault.helltop.net", 
-      "healthEndpoint": "/alive" 
+      "healthEndpoint": "/alive",
+      "icon": "siBitwarden"
     }
   ]
 }
