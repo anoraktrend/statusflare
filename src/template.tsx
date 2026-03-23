@@ -695,9 +695,18 @@ export function renderServiceDetailPage(service: any, history: any[], incidents:
           </div>
         </div>
 
-        <footer className="mt-16 text-center border-t border-ctp-surface0 pt-10 pb-20">
-          <p className="text-ctp-subtext0 text-xs font-bold tracking-[0.3em] uppercase m-0">Powered by Cloudflare Workers & D1</p>
-          <p className="text-ctp-overlay0 text-[0.7rem] italic mt-2 m-0">Last checked: {lastChecked}</p>
+        <footer className="mt-16 text-center border-t border-ctp-surface0 pt-10 pb-20 space-y-4">
+          <div className="flex justify-center gap-6 text-ctp-subtext0">
+            <SimpleIcon name="siCloudflare" className="w-6 h-6 hover:text-ctp-mauve transition-colors" />
+            <SimpleIcon name="siGithub" className="w-6 h-6 hover:text-ctp-mauve transition-colors" />
+            <SimpleIcon name="siTailwindcss" className="w-6 h-6 hover:text-ctp-mauve transition-colors" />
+          </div>
+          <div className="text-ctp-subtext0 text-xs font-bold tracking-[0.3em] uppercase">
+            Powered by Workers & D1
+          </div>
+          <div className="text-ctp-overlay0 text-[0.7rem] italic">
+            Last checked: {lastChecked}
+          </div>
         </footer>
       </div>
     </Layout>
