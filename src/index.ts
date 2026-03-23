@@ -215,20 +215,32 @@ export default {
       const width = url.searchParams.get('w') || '512';
       const height = url.searchParams.get('h') || width;
 
-      const query = `
-        SELECT s.name, h.status
-        FROM services s
-        LEFT JOIN (
-          SELECT service_id, status
-          FROM health_checks
+      let status = 'unknown';
+
+      if (serviceName.toLowerCase() === 'all' || serviceName.toLowerCase() === 'global') {
+        const query = `
+          SELECT status FROM health_checks 
           WHERE id IN (SELECT MAX(id) FROM health_checks GROUP BY service_id)
-        ) h ON s.id = h.service_id
-        WHERE LOWER(s.name) = LOWER(?) OR LOWER(s.name) LIKE LOWER(?)
-        LIMIT 1
-      `;
-      
-      const result = await env.status_db.prepare(query).bind(serviceName, `%${serviceName}%`).first() as any;
-      const status = result ? result.status : 'unknown';
+        `;
+        const { results } = await env.status_db.prepare(query).all<{status: string}>();
+        if (results.length > 0) {
+          status = results.every(r => r.status === 'up') ? 'up' : 'down';
+        }
+      } else {
+        const query = `
+          SELECT s.name, h.status
+          FROM services s
+          LEFT JOIN (
+            SELECT service_id, status
+            FROM health_checks
+            WHERE id IN (SELECT MAX(id) FROM health_checks GROUP BY service_id)
+          ) h ON s.id = h.service_id
+          WHERE LOWER(s.name) = LOWER(?) OR LOWER(s.name) LIKE LOWER(?)
+          LIMIT 1
+        `;
+        const result = await env.status_db.prepare(query).bind(serviceName, `%${serviceName}%`).first() as any;
+        status = result ? result.status : 'unknown';
+      }
       
       const SVG_TEMPLATE = `<?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <svg width="{{WIDTH}}" height="{{HEIGHT}}" viewBox="0 0 512 512" version="1.1" xmlns="http://www.w3.org/2000/svg">
@@ -317,7 +329,10 @@ export default {
 
       if (path === '/api/status') {
         return new Response(JSON.stringify({ services: servicesWithHistory, historicalIncidents, manualIncidents }, null, 2), {
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*'
+          },
         });
       }
       return new Response(renderStatusPage(servicesWithHistory, historicalIncidents as any[], manualIncidents as any[]), {
