@@ -1,21 +1,21 @@
 import { render } from 'preact-render-to-string';
 import { 
-  Activity, 
-  ShieldCheck, 
-  AlertTriangle, 
-  Trash2, 
-  Plus, 
-  LogOut, 
-  ExternalLink, 
-  Clock, 
-  CheckCircle2, 
-  XCircle, 
-  History,
-  Moon,
-  Sun,
-  LayoutDashboard,
-  Server
-} from 'lucide-preact';
+  LuActivity, 
+  LuShieldCheck, 
+  LuAlertTriangle, 
+  LuTrash2, 
+  LuPlus, 
+  LuLogOut, 
+  LuExternalLink, 
+  LuClock, 
+  LuCheckCircle2, 
+  LuXCircle, 
+  LuHistory,
+  LuMoon,
+  LuSun,
+  LuLayoutDashboard,
+  LuServer
+} from '@react-icons/lu';
 import * as simpleIcons from 'simple-icons';
 
 const themeScript = `
