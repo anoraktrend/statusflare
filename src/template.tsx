@@ -41,7 +41,7 @@ const themeScript = `
     });
 `;
 
-function SimpleIcon({ name, className = "" }: { name: keyof typeof simpleIcons; className?: string }) {
+function SimpleIcon({ name, className = "", useBrandColor = false }: { name: keyof typeof simpleIcons; className?: string; useBrandColor?: boolean }) {
   const icon = (simpleIcons as any)[name];
   if (!icon) return null;
   return (
@@ -49,7 +49,7 @@ function SimpleIcon({ name, className = "" }: { name: keyof typeof simpleIcons; 
       role="img" 
       viewBox="0 0 24 24" 
       className={className} 
-      fill="currentColor" 
+      fill={useBrandColor ? `#${icon.hex}` : "currentColor"} 
       xmlns="http://www.w3.org/2000/svg"
       dangerouslySetInnerHTML={{ __html: icon.path }}
     />
@@ -498,7 +498,7 @@ export function renderStatusPage(services: any[], historicalIncidents: any[], ma
                       {latest.latency_ms && <span className="text-xs px-2 py-0.5 bg-ctp-surface0 rounded-lg text-ctp-overlay0 font-mono tracking-tighter">{latest.latency_ms}ms</span>}
                     </h3>
                     <p className="m-0 mt-1.5 text-sm text-ctp-overlay0 flex items-center gap-1.5">
-                      <SimpleIcon name={s.icon || "siCloudflare"} className="w-3.5 h-3.5" />
+                      <SimpleIcon name={s.icon || "siCloudflare"} className="w-3.5 h-3.5" useBrandColor />
                       {s.url}
                     </p>
                   </div>
@@ -554,9 +554,9 @@ export function renderStatusPage(services: any[], historicalIncidents: any[], ma
 
         <footer className="mt-24 text-center border-t border-ctp-surface0 pt-10 pb-10 space-y-4">
           <div className="flex justify-center gap-6 text-ctp-overlay0">
-            <SimpleIcon name="siCloudflare" className="w-6 h-6 hover:text-ctp-mauve transition-colors" />
-            <SimpleIcon name="siGithub" className="w-6 h-6 hover:text-ctp-mauve transition-colors" />
-            <SimpleIcon name="siTailwindcss" className="w-6 h-6 hover:text-ctp-mauve transition-colors" />
+            <SimpleIcon name="siCloudflare" className="w-6 h-6 hover:opacity-80 transition-opacity" useBrandColor />
+            <SimpleIcon name="siGithub" className="w-6 h-6 hover:opacity-80 transition-opacity" useBrandColor />
+            <SimpleIcon name="siTailwindcss" className="w-6 h-6 hover:opacity-80 transition-opacity" useBrandColor />
           </div>
           <div className="text-ctp-overlay0 text-xs font-bold tracking-[0.3em] uppercase">
             Powered by Workers & D1
@@ -587,7 +587,7 @@ export function renderServiceDetailPage(service: any, history: any[], incidents:
         
         <div className="bg-ctp-mantle rounded-2xl p-10 border border-ctp-surface0 mb-8 flex justify-between items-center flex-wrap gap-8 shadow-2xl relative overflow-hidden">
           <div className="absolute top-0 right-0 p-10 opacity-5 -mr-5 -mt-5">
-            <SimpleIcon name={service.icon || "siCloudflare"} className="w-48 h-48" />
+            <SimpleIcon name={service.icon || "siCloudflare"} className="w-48 h-48" useBrandColor />
           </div>
           <div className="flex-1 min-w-[300px] relative z-10">
             <h1 className="m-0 text-4xl font-bold tracking-tight">{service.name}</h1>
