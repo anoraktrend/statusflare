@@ -175,12 +175,14 @@ function Layout({ title, children }: { title: string; children: any }) {
         <link rel="stylesheet" href="/tailwind.css" />
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
-      <body className="bg-ctp-base text-ctp-text font-mono min-h-screen w-full selection:bg-ctp-mauve/30">
+      <body className="bg-ctp-base text-ctp-text font-mono min-h-screen w-full selection:bg-ctp-mauve/30 flex flex-col">
         <button id="theme-toggle" className="fixed top-5 right-5 bg-ctp-mantle border border-ctp-surface0 text-ctp-text w-10 h-10 rounded-full cursor-pointer flex items-center justify-center shadow-lg z-50 hover:bg-ctp-surface0 transition-all hover:scale-110 active:scale-95" title="Toggle Theme">
           <Sun className="hidden latte:block" size={20} />
           <Moon className="hidden mocha:block" size={20} />
         </button>
-        {children}
+        <main className="flex-1">
+          {children}
+        </main>
       </body>
     </html>
   );
@@ -552,13 +554,13 @@ export function renderStatusPage(services: any[], historicalIncidents: any[], ma
           ))}
         </div>
 
-        <footer className="mt-24 text-center border-t border-ctp-surface0 pt-10 pb-10 space-y-4">
-          <div className="flex justify-center gap-6 text-ctp-overlay0">
-            <SimpleIcon name="siCloudflare" className="w-6 h-6 hover:opacity-80 transition-opacity" useBrandColor />
-            <SimpleIcon name="siGithub" className="w-6 h-6 hover:opacity-80 transition-opacity" useBrandColor />
-            <SimpleIcon name="siTailwindcss" className="w-6 h-6 hover:opacity-80 transition-opacity" useBrandColor />
+        <footer className="mt-16 text-center border-t border-ctp-surface0 pt-10 pb-20 space-y-4">
+          <div className="flex justify-center gap-6 text-ctp-subtext0">
+            <SimpleIcon name="siCloudflare" className="w-6 h-6 hover:text-ctp-mauve transition-colors" />
+            <SimpleIcon name="siGithub" className="w-6 h-6 hover:text-ctp-mauve transition-colors" />
+            <SimpleIcon name="siTailwindcss" className="w-6 h-6 hover:text-ctp-mauve transition-colors" />
           </div>
-          <div className="text-ctp-overlay0 text-xs font-bold tracking-[0.3em] uppercase">
+          <div className="text-ctp-subtext0 text-xs font-bold tracking-[0.3em] uppercase">
             Powered by Workers & D1
           </div>
           <div className="text-ctp-overlay0 text-[0.7rem] italic">
@@ -693,8 +695,9 @@ export function renderServiceDetailPage(service: any, history: any[], incidents:
           </div>
         </div>
 
-        <footer className="mt-24 text-center border-t border-ctp-surface0 pt-10 pb-10">
-          <p className="text-ctp-overlay0 text-xs font-bold tracking-[0.3em] uppercase">Powered by Cloudflare Workers & D1</p>
+        <footer className="mt-16 text-center border-t border-ctp-surface0 pt-10 pb-20">
+          <p className="text-ctp-subtext0 text-xs font-bold tracking-[0.3em] uppercase m-0">Powered by Cloudflare Workers & D1</p>
+          <p className="text-ctp-overlay0 text-[0.7rem] italic mt-2 m-0">Last checked: {lastChecked}</p>
         </footer>
       </div>
     </Layout>
