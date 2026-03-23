@@ -59,7 +59,7 @@ function SimpleIcon({ name, className = "", useBrandColor = false }: { name: key
 function SvgDot({ status, size = 16 }: { status: string; size?: number }) {
   const colorClass = status === 'up' ? 'text-ctp-green' : (status === 'down' ? 'text-ctp-red' : 'text-ctp-yellow');
   return (
-    <svg width={size} height={size} viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg" className={`${colorClass} inline-block align-middle shrink-0`}>
+    <svg width={size} height={size} viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg" className={`${colorClass} inline-block align-middle shrink-0 transition-colors duration-300`}>
       <ellipse cx="256" cy="255.99998" rx="250.06845" ry="250.06844" fill="black" stroke="currentColor" stroke-width="11.8631" />
       <ellipse cx="256" cy="255.99998" rx="204.00301" ry="204.00299" fill="black" stroke="currentColor" stroke-width="41.994" />
       <ellipse cx="256" cy="256" rx="158.24641" ry="158.24643" fill="currentColor" stroke="currentColor" stroke-width="7.50716" />
@@ -426,9 +426,24 @@ export function renderAdminPage(services: any[], activeIncidents: any[], error?:
 }
 
 export function renderStatusPage(services: any[], historicalIncidents: any[], manualIncidents: any[], system?: { history: any[], uptime: string }) {
-  const isAllUp = services.every(s => s.latest.status === 'up') && manualIncidents.length === 0;
-  const overallStatusText = manualIncidents.length > 0 ? 'Active System Incident' : (isAllUp ? 'All Systems Operational' : 'Partial System Outage');
-  const overallStatusColor = manualIncidents.length > 0 ? 'ctp-red' : (isAllUp ? 'ctp-green' : 'ctp-yellow');
+  const allUp = services.every(s => s.latest.status === 'up');
+  const allDown = services.length > 0 && services.every(s => s.latest.status === 'down');
+  const hasManualIncident = manualIncidents.length > 0;
+
+  let overallStatusText = 'All Systems Operational';
+  let overallStatusColor = 'ctp-green';
+  let overallStatusIcon = 'up';
+
+  if (hasManualIncident || allDown) {
+    overallStatusText = hasManualIncident ? 'Active System Incident' : 'Major System Outage';
+    overallStatusColor = 'ctp-red';
+    overallStatusIcon = 'down';
+  } else if (!allUp) {
+    overallStatusText = 'Partial System Outage';
+    overallStatusColor = 'ctp-yellow';
+    overallStatusIcon = 'degraded';
+  }
+
   const lastChecked = new Date().toLocaleString();
 
   return '<!DOCTYPE html>' + render(
@@ -459,7 +474,7 @@ export function renderStatusPage(services: any[], historicalIncidents: any[], ma
         </header>
 
         <div className={`p-6 rounded-2xl bg-ctp-${overallStatusColor}/15 border-2 border-ctp-${overallStatusColor} text-ctp-${overallStatusColor} font-bold text-2xl flex items-center justify-center gap-4 mb-8 animate-pulse-custom shadow-lg`} style={{ '--pulse-color': `color-mix(in srgb, var(--color-${overallStatusColor}) 40%, transparent)` }}>
-          <SvgDot status={isAllUp ? 'up' : 'down'} size={28} />
+          <SvgDot status={overallStatusIcon} size={28} />
           {overallStatusText}
         </div>
 

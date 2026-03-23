@@ -331,7 +331,11 @@ export default {
       const systemHistoryQuery = `
         SELECT 
           strftime('%Y-%m-%d %H:%M', timestamp) as timestamp,
-          CASE WHEN MIN(status) = 'down' THEN 'down' ELSE 'up' END as status,
+          CASE 
+            WHEN MIN(status) = 'up' AND MAX(status) = 'up' THEN 'up'
+            WHEN MIN(status) = 'down' AND MAX(status) = 'down' THEN 'down'
+            ELSE 'degraded'
+          END as status,
           CAST(AVG(latency_ms) AS INTEGER) as latency_ms
         FROM health_checks
         GROUP BY strftime('%Y-%m-%d %H:%M', timestamp)
