@@ -1,33 +1,36 @@
 {
-	"name": "status-worker",
-	"version": "0.0.0",
-	"private": true,
-	"scripts": {
-		"build:css": "tailwindcss -i src/input.css -o public/tailwind.css",
-		"deploy": "pnpm build:css && wrangler deploy",
-		"dev": "pnpm build:css && wrangler dev",
-		"start": "wrangler dev",
-		"test": "vitest",
-		"cf-typegen": "wrangler types"
-	},
-	"devDependencies": {
-		"@catppuccin/tailwindcss": "^1.0.0",
-		"@cloudflare/vitest-pool-workers": "^0.13.3",
-		"@cloudflare/workers-types": "^4.20260317.1",
-		"@tailwindcss/cli": "^4.2.2",
-		"@types/node": "^25.5.0",
-		"tailwindcss": "^4.2.2",
-		"typescript": "^5.9.3",
-		"vitest": "^4.1.0",
-		"wrangler": "^4.76.0"
-	},
-	"dependencies": {
-		"jose": "^6.2.2",
-		"lucide-preact": "^0.577.0",
-		"preact": "^10.29.0",
-		"preact-render-to-string": "^6.6.6",
-		"react-icons": "^5.6.0",
-		"sanitize": "^2.1.2",
-		"simple-icons": "^16.13.0"
-	}
+  "name": "status-worker",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "build:css": "tailwindcss -i src/input.css -o public/tailwind.css",
+    "deploy": "pnpm build:css && wrangler deploy",
+    "dev": "pnpm build:css && wrangler dev",
+    "start": "wrangler dev",
+    "test": "vitest",
+    "cf-typegen": "wrangler types"
+  },
+  "devDependencies": {
+    "@catppuccin/tailwindcss": "^1.0.0",
+    "@cloudflare/vitest-pool-workers": "^0.13.3",
+    "@cloudflare/workers-types": "^4.20260317.1",
+    "@tailwindcss/cli": "^4.2.2",
+    "@types/node": "^25.5.0",
+    "tailwindcss": "^4.2.2",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.0",
+    "wrangler": "^4.76.0"
+  },
+  "dependencies": {
+    "jose": "^6.2.2",
+    "lucide-preact": "^0.577.0",
+    "preact": "^10.29.0",
+    "preact-render-to-string": "^6.6.6",
+    "react-icons": "^5.6.0",
+    "sanitize": "^2.1.2",
+    "simple-icons": "^16.13.0"
+  },
+  "trustedDependencies": [
+    "@parcel/watcher"
+  ]
 }
