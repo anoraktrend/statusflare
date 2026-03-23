@@ -24,7 +24,7 @@ const themeScript = `
 `;
 
 export function Layout({ title, description = "Real-time system health monitoring", color = "#cba6f7", badgeService = "global", children }: { title: string; description?: string; color?: string; badgeService?: string; children: any }) {
-  const badgeUrl = `https://status.helltop.net/badge/${encodeURIComponent(badgeService)}.svg?w=1200&h=630`;
+  const badgeUrl = `https://status.helltop.net/badge/${encodeURIComponent(badgeService)}.png?w=1200&h=630`;
   
   return (
     <html lang="en" className="mocha">
@@ -42,7 +42,7 @@ export function Layout({ title, description = "Real-time system health monitorin
         <meta property="og:image" content={badgeUrl} />
         <meta property="og:image:width" content="1200" />
         <meta property="og:image:height" content="630" />
-        <meta property="og:image:type" content="image/svg+xml" />
+        <meta property="og:image:type" content="image/png" />
         
         <meta name="theme-color" content={color} />
         <meta name="twitter:card" content="summary_large_image" />

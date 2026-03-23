@@ -5,9 +5,53 @@ import { Env, Service } from './types';
 import { isAuthenticated, hashPassword } from './utils/auth';
 import { performHealthCheck } from './services/checker';
 import { sendEmail, sendDiscordNotification } from './utils/notifications';
+import { svgToPng } from './utils/image';
 // @ts-ignore
 import sanitize from 'sanitize';
 import * as jose from 'jose';
+
+async function getBadgeStatus(env: Env, serviceName: string): Promise<string> {
+  let status = 'unknown';
+
+  if (serviceName.toLowerCase() === 'all' || serviceName.toLowerCase() === 'global') {
+    const query = `
+      SELECT status FROM health_checks 
+      WHERE id IN (SELECT MAX(id) FROM health_checks GROUP BY service_id)
+    `;
+    const { results } = await env.status_db.prepare(query).all<{status: string}>();
+    if (results.length > 0) {
+      status = results.every(r => r.status === 'up') ? 'up' : 'down';
+    }
+  } else {
+    const query = `
+      SELECT s.name, h.status
+      FROM services s
+      LEFT JOIN (
+        SELECT service_id, status
+        FROM health_checks
+        WHERE id IN (SELECT MAX(id) FROM health_checks GROUP BY service_id)
+      ) h ON s.id = h.service_id
+      WHERE LOWER(s.name) = LOWER(?) OR LOWER(s.name) LIKE LOWER(?)
+      LIMIT 1
+    `;
+    const result = await env.status_db.prepare(query).bind(serviceName, `%${serviceName}%`).first() as any;
+    status = result ? result.status : 'unknown';
+  }
+  return status;
+}
+
+function generateBadgeSvg(status: string, width: string, height: string): string {
+  const SVG_TEMPLATE = `<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg width="{{WIDTH}}" height="{{HEIGHT}}" viewBox="0 0 512 512" version="1.1" xmlns="http://www.w3.org/2000/svg">
+  <g>
+    <ellipse style="fill:#000000;stroke:{{COLOR}};stroke-width:11.8631;stroke-dasharray:none;stroke-opacity:1;paint-order:normal" cx="256" cy="255.99998" rx="250.06845" ry="250.06844" />
+    <ellipse style="fill:#000000;stroke:{{COLOR}};stroke-width:41.994;stroke-dasharray:none;stroke-opacity:1;paint-order:normal" cx="256" cy="255.99998" rx="204.00301" ry="204.00299" />
+    <ellipse style="fill:{{COLOR}};fill-opacity:1;stroke:{{COLOR}};stroke-width:7.50716;stroke-dasharray:none;stroke-opacity:1;paint-order:normal" cx="256" cy="256" rx="158.24641" ry="158.24643" />
+  </g>
+</svg>`;
+  const color = status === 'up' ? '#007c00' : (status === 'down' ? '#f80008' : '#6c7485');
+  return SVG_TEMPLATE.replace(/{{COLOR}}/g, color).replace(/{{WIDTH}}/g, width).replace(/{{HEIGHT}}/g, height);
+}
 
 export default {
   async scheduled(controller: ScheduledController, env: Env, ctx: ExecutionContext) {
@@ -19,51 +63,32 @@ export default {
     const url = new URL(request.url);
     const path = url.pathname;
 
-    // --- Dynamic SVG Status Route ---
-    if (path.startsWith('/badge/') && path.endsWith('.svg')) {
-      const serviceName = decodeURIComponent(path.substring(7, path.length - 4));
+    // --- Dynamic Badge Routes ---
+    if (path.startsWith('/badge/') && (path.endsWith('.svg') || path.endsWith('.png'))) {
+      const isPng = path.endsWith('.png');
+      const serviceName = decodeURIComponent(path.substring(7, path.length - (isPng ? 4 : 4)));
       const width = url.searchParams.get('w') || '512';
       const height = url.searchParams.get('h') || width;
 
-      let status = 'unknown';
+      const status = await getBadgeStatus(env, serviceName);
+      const svg = generateBadgeSvg(status, width, height);
 
-      if (serviceName.toLowerCase() === 'all' || serviceName.toLowerCase() === 'global') {
-        const query = `
-          SELECT status FROM health_checks 
-          WHERE id IN (SELECT MAX(id) FROM health_checks GROUP BY service_id)
-        `;
-        const { results } = await env.status_db.prepare(query).all<{status: string}>();
-        if (results.length > 0) {
-          status = results.every(r => r.status === 'up') ? 'up' : 'down';
+      if (isPng) {
+        try {
+          const png = await svgToPng(svg, parseInt(width), parseInt(height));
+          return new Response(png as any, {
+            headers: {
+              'Content-Type': 'image/png',
+              'Cache-Control': 'public, max-age=60',
+              'Access-Control-Allow-Origin': '*'
+            }
+          });
+        } catch (e: any) {
+          return new Response(`Error generating PNG: ${e.message}`, { status: 500 });
         }
-      } else {
-        const query = `
-          SELECT s.name, h.status
-          FROM services s
-          LEFT JOIN (
-            SELECT service_id, status
-            FROM health_checks
-            WHERE id IN (SELECT MAX(id) FROM health_checks GROUP BY service_id)
-          ) h ON s.id = h.service_id
-          WHERE LOWER(s.name) = LOWER(?) OR LOWER(s.name) LIKE LOWER(?)
-          LIMIT 1
-        `;
-        const result = await env.status_db.prepare(query).bind(serviceName, `%${serviceName}%`).first() as any;
-        status = result ? result.status : 'unknown';
       }
-      
-      const SVG_TEMPLATE = `<?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<svg width="{{WIDTH}}" height="{{HEIGHT}}" viewBox="0 0 512 512" version="1.1" xmlns="http://www.w3.org/2000/svg">
-  <g>
-    <ellipse style="fill:#000000;stroke:{{COLOR}};stroke-width:11.8631;stroke-dasharray:none;stroke-opacity:1;paint-order:normal" cx="256" cy="255.99998" rx="250.06845" ry="250.06844" />
-    <ellipse style="fill:#000000;stroke:{{COLOR}};stroke-width:41.994;stroke-dasharray:none;stroke-opacity:1;paint-order:normal" cx="256" cy="255.99998" rx="204.00301" ry="204.00299" />
-    <ellipse style="fill:{{COLOR}};fill-opacity:1;stroke:{{COLOR}};stroke-width:7.50716;stroke-dasharray:none;stroke-opacity:1;paint-order:normal" cx="256" cy="256" rx="158.24641" ry="158.24643" />
-  </g>
-</svg>`;
-      const color = status === 'up' ? '#007c00' : (status === 'down' ? '#f80008' : '#6c7485');
-      const rendered = SVG_TEMPLATE.replace(/{{COLOR}}/g, color).replace(/{{WIDTH}}/g, width).replace(/{{HEIGHT}}/g, height);
 
-      return new Response(rendered, {
+      return new Response(svg, {
         headers: {
           'Content-Type': 'image/svg+xml',
           'Cache-Control': 'no-cache, no-store, must-revalidate',

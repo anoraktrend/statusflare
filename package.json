@@ -22,6 +22,7 @@
     "wrangler": "^4.76.0"
   },
   "dependencies": {
+    "@resvg/resvg-wasm": "^2.6.2",
     "jose": "^6.2.2",
     "lucide-preact": "^0.577.0",
     "preact": "^10.29.0",
