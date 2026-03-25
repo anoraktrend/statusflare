@@ -18,8 +18,8 @@ export function ServiceIcon({ name, className = "", useBrandColor = false }: { n
     .replace(/[^a-z0-9-+.]/g, '');
 
   // selfhst/icons CDN - SVG is preferred, using -light variant
-  const lightIconUrl = `https://cdn.jsdelivr.net/gh/selfhst/icons/svg/${slug}-light.svg`;
-  const fallbackIconUrl = `https://cdn.jsdelivr.net/gh/selfhst/icons/svg/${slug}.svg`;
+  const lightIconUrl = `https://cdn.jsdelivr.net/gh/selfhst/icons@main/svg/${slug}-light.svg`;
+  const fallbackIconUrl = `https://cdn.jsdelivr.net/gh/selfhst/icons@main/svg/${slug}.svg`;
 
   if (useBrandColor) {
     return (
@@ -38,11 +38,11 @@ export function ServiceIcon({ name, className = "", useBrandColor = false }: { n
           // 4. png-regular -> simple-icons
           
           if (img.src.endsWith('-light.svg')) {
-            img.src = `https://cdn.jsdelivr.net/gh/selfhst/icons/png/${slug}-light.png`;
+            img.src = `https://cdn.jsdelivr.net/gh/selfhst/icons@main/png/${slug}-light.png`;
           } else if (img.src.endsWith('-light.png')) {
             img.src = fallbackIconUrl;
           } else if (img.src.endsWith(`${slug}.svg`)) {
-            img.src = `https://cdn.jsdelivr.net/gh/selfhst/icons/png/${slug}.png`;
+            img.src = `https://cdn.jsdelivr.net/gh/selfhst/icons@main/png/${slug}.png`;
           } else if (img.src.includes('selfhst/icons')) {
             img.src = `https://cdn.simpleicons.org/${slug}`;
           }
