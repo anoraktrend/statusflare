@@ -1,6 +1,8 @@
 import { env, createExecutionContext, waitOnExecutionContext, SELF } from 'cloudflare:test';
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, vi } from 'vitest';
 import worker from '../src';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 
 describe('status-worker', () => {
 	beforeAll(async () => {
@@ -89,6 +91,18 @@ describe('status-worker', () => {
 		const text = await response.text();
 		expect(text).toContain('<svg');
 		expect(text).toContain('#007c00'); // Green color for 'up' status
+	});
+
+	it('returns a PNG badge for GET /badge/Test%20Service.png', async () => {
+		const request = new Request('http://example.com/badge/Test%20Service.png');
+		const response = await SELF.fetch(request);
+		if (response.status === 500) {
+			console.error(await response.text());
+		}
+		expect(response.status).toBe(200);
+		expect(response.headers.get('Content-Type')).toContain('image/png');
+		const buffer = await response.arrayBuffer();
+		expect(buffer.byteLength).toBeGreaterThan(0);
 	});
 
 	it('returns 404 for unknown routes', async () => {

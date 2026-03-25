@@ -6,13 +6,15 @@
 	"$schema": "node_modules/wrangler/config-schema.json",
 	"name": "status-worker",
 	"main": "src/index.ts",
+	"minify": true,
 	"compatibility_date": "2026-03-01",
 	"compatibility_flags": [
 		"nodejs_compat",
 		"global_fetch_strictly_public"
 	],
 	"assets": {
-		"directory": "./public"
+		"directory": "./public",
+		"binding": "ASSETS"
 	},
 	"routes": [
 		{

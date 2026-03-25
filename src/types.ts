@@ -1,5 +1,6 @@
 export interface Env {
   status_db: D1Database;
+  ASSETS: Fetcher;
   ADMIN_PASSWORD_HASH?: string;
   AUTHELIA_ISSUER: string;
   AUTHELIA_CLIENT_ID: string;

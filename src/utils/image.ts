@@ -1,12 +1,13 @@
 import { initWasm, Resvg } from '@resvg/resvg-wasm';
-// @ts-ignore
-import wasm from '../node_modules/@resvg/resvg-wasm/index_bg.wasm';
 
 let initialized = false;
 
-export async function svgToPng(svg: string, width: number, height: number): Promise<Uint8Array> {
+export async function svgToPng(svg: string, width: number, height: number, wasmBuffer?: ArrayBuffer): Promise<Uint8Array> {
   if (!initialized) {
-    await initWasm(wasm);
+    if (!wasmBuffer) {
+      throw new Error('WASM buffer must be provided for the first initialization');
+    }
+    await initWasm(wasmBuffer);
     initialized = true;
   }
 

@@ -10,6 +10,8 @@ import { svgToPng } from './utils/image';
 import sanitize from 'sanitize';
 import * as jose from 'jose';
 
+let cachedWasm: ArrayBuffer | null = null;
+
 async function getBadgeStatus(env: Env, serviceName: string): Promise<string> {
   let status = 'unknown';
 
@@ -75,7 +77,12 @@ export default {
 
       if (isPng) {
         try {
-          const png = await svgToPng(svg, parseInt(width), parseInt(height));
+          if (!cachedWasm) {
+            const wasmRes = await env.ASSETS.fetch(new URL('/resvg.wasm', request.url));
+            if (!wasmRes.ok) throw new Error('Failed to fetch resvg.wasm');
+            cachedWasm = await wasmRes.arrayBuffer();
+          }
+          const png = await svgToPng(svg, parseInt(width), parseInt(height), cachedWasm);
           return new Response(png as any, {
             headers: {
               'Content-Type': 'image/png',
