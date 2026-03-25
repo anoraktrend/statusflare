@@ -9,7 +9,7 @@ import {
   History
 } from 'lucide-preact';
 import { Layout } from '../components/Layout';
-import { SimpleIcon } from '../components/SimpleIcon';
+import { ServiceIcon } from '../components/ServiceIcon';
 import { SvgDot } from '../components/SvgDot';
 import { ParsedData } from '../components/ParsedData';
 import { Service, Incident, HealthCheck } from '../types';
@@ -37,7 +37,7 @@ export function renderServiceDetailPage(service: Service, history: HealthCheck[]
         
         <div className="bg-ctp-mantle rounded-2xl p-10 border border-ctp-surface0 mb-8 flex justify-between items-center flex-wrap gap-8 shadow-2xl relative overflow-hidden">
           <div className="absolute top-0 right-0 p-10 opacity-5 -mr-5 -mt-5">
-            <SimpleIcon name={service.icon || "siCloudflare"} className="w-48 h-48" useBrandColor />
+            <ServiceIcon name={service.icon || "cloudflare"} className="w-48 h-48" useBrandColor />
           </div>
           <div className="flex-1 min-w-[300px] relative z-10">
             <h1 className="m-0 text-4xl font-bold tracking-tight">{service.name}</h1>
@@ -145,10 +145,10 @@ export function renderServiceDetailPage(service: Service, history: HealthCheck[]
 
         <footer className="mt-16 text-center border-t border-ctp-surface0 pt-10 pb-20 space-y-4">
           <div className="flex justify-center gap-6 text-ctp-subtext0">
-            <SimpleIcon name="siCloudflare" className="w-6 h-6 hover:text-ctp-mauve transition-colors" />
-            <SimpleIcon name="siGithub" className="w-6 h-6 hover:text-ctp-mauve transition-colors" />
-            <SimpleIcon name="siDiscord" className="w-6 h-6 hover:text-ctp-mauve transition-colors" />
-            <SimpleIcon name="siTailwindcss" className="w-6 h-6 hover:text-ctp-mauve transition-colors" />
+            <ServiceIcon name="cloudflare" className="w-6 h-6 hover:text-ctp-mauve transition-colors" />
+            <ServiceIcon name="github" className="w-6 h-6 hover:text-ctp-mauve transition-colors" />
+            <ServiceIcon name="discord" className="w-6 h-6 hover:text-ctp-mauve transition-colors" />
+            <ServiceIcon name="tailwindcss" className="w-6 h-6 hover:text-ctp-mauve transition-colors" />
           </div>
           <div className="text-ctp-subtext0 text-xs font-bold tracking-[0.3em] uppercase">
             Powered by Workers & D1

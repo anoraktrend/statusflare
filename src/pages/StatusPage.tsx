@@ -11,7 +11,7 @@ import {
   Server
 } from 'lucide-preact';
 import { Layout } from '../components/Layout';
-import { SimpleIcon } from '../components/SimpleIcon';
+import { ServiceIcon } from '../components/ServiceIcon';
 import { SvgDot } from '../components/SvgDot';
 import { Service, Incident } from '../types';
 
@@ -141,7 +141,7 @@ export function renderStatusPage(services: any[], historicalIncidents: any[], ma
                       {latest.latency_ms && <span className="text-xs px-2 py-0.5 bg-ctp-surface0 rounded-lg text-ctp-overlay0 font-mono tracking-tighter">{latest.latency_ms}ms</span>}
                     </h3>
                     <p className="m-0 mt-1.5 text-sm text-ctp-overlay0 flex items-center gap-1.5">
-                      <SimpleIcon name={s.icon || "siCloudflare"} className="w-3.5 h-3.5" useBrandColor />
+                      <ServiceIcon name={s.icon || "cloudflare"} className="w-3.5 h-3.5" useBrandColor />
                       {s.url}
                     </p>
                   </div>
@@ -197,10 +197,10 @@ export function renderStatusPage(services: any[], historicalIncidents: any[], ma
 
         <footer className="mt-16 text-center border-t border-ctp-surface0 pt-10 pb-20 space-y-4">
           <div className="flex justify-center gap-6 text-ctp-subtext0">
-            <SimpleIcon name="siCloudflare" className="w-6 h-6 hover:text-ctp-mauve transition-colors" />
-            <SimpleIcon name="siGithub" className="w-6 h-6 hover:text-ctp-mauve transition-colors" />
-            <SimpleIcon name="siDiscord" className="w-6 h-6 hover:text-ctp-mauve transition-colors" />
-            <SimpleIcon name="siTailwindcss" className="w-6 h-6 hover:text-ctp-mauve transition-colors" />
+            <ServiceIcon name="cloudflare" className="w-6 h-6 hover:text-ctp-mauve transition-colors" />
+            <ServiceIcon name="github" className="w-6 h-6 hover:text-ctp-mauve transition-colors" />
+            <ServiceIcon name="discord" className="w-6 h-6 hover:text-ctp-mauve transition-colors" />
+            <ServiceIcon name="tailwindcss" className="w-6 h-6 hover:text-ctp-mauve transition-colors" />
           </div>
           <div className="text-ctp-subtext0 text-xs font-bold tracking-[0.3em] uppercase">
             Powered by Workers & D1

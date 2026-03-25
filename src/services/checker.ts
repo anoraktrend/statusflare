@@ -1,5 +1,4 @@
-import { Env, Service } from '../types';
-import { sendEmail, sendDiscordNotification } from '../utils/notifications';
+import { Env, Service, StatusChange } from '../types';
 
 async function getCachedToken(db: D1Database, service: Service): Promise<{token: string | null, error?: string}> {
   if (!service.token_url || !service.token_body) return {token: null};
@@ -32,7 +31,7 @@ async function getCachedToken(db: D1Database, service: Service): Promise<{token:
   }
 }
 
-export async function performHealthCheck(env: Env, service: Service) {
+export async function performHealthCheck(env: Env, service: Service): Promise<StatusChange | null> {
   const db = env.status_db;
   const start = Date.now();
   let status: 'up' | 'down' = 'down';
@@ -102,13 +101,15 @@ export async function performHealthCheck(env: Env, service: Service) {
 
     // Send alerts on status change
     if (status !== previousStatus && previousStatus !== 'unknown') {
-      const subject = `[StatusFlare] ${service.name} is ${status.toUpperCase()}`;
-      const text = `Service: ${service.name}\nStatus: ${status.toUpperCase()}\nPrevious Status: ${previousStatus.toUpperCase()}\nHTTP Code: ${statusCode}\nTime: ${new Date().toISOString()}\n\nDetails:\n${responseSnippet}`;
-      
-      await sendEmail(env, subject, text);
-      
-      const discordColor = status === 'up' ? 0x57F287 : 0xED4245;
-      await sendDiscordNotification(env, subject, text, discordColor);
+      return {
+        serviceName: service.name,
+        status,
+        previousStatus,
+        statusCode,
+        responseSnippet,
+        time: new Date().toISOString()
+      };
     }
+    return null;
   }
 }

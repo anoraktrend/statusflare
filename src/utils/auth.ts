@@ -16,8 +16,8 @@ export async function isAuthenticated(request: Request, env: Env) {
   
   try {
     const secret = new TextEncoder().encode(env.SESSION_SECRET);
-    await jose.jwtVerify(sessionToken, secret);
-    return true;
+    const { payload } = await jose.jwtVerify(sessionToken, secret);
+    return payload;
   } catch (e: any) {
     return false;
   }

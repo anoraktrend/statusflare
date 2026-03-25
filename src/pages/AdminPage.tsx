@@ -9,13 +9,16 @@ import {
   CircleCheck, 
   LayoutDashboard,
   Server,
-  Activity
+  Activity,
+  Bell,
+  BellOff,
+  User as UserIcon
 } from 'lucide-preact';
 import { Layout } from '../components/Layout';
-import { SimpleIcon } from '../components/SimpleIcon';
-import { Service, Incident } from '../types';
+import { ServiceIcon } from '../components/ServiceIcon';
+import { Service, Incident, User } from '../types';
 
-export function renderAdminPage(services: Service[], activeIncidents: Incident[], error?: string, isAuthenticated: boolean = false, oidcConfigured: boolean = true) {
+export function renderAdminPage(services: Service[], activeIncidents: Incident[], user?: User, error?: string, isAuthenticated: boolean = false, oidcConfigured: boolean = true) {
   if (!isAuthenticated) {
     return '<!DOCTYPE html>' + render(
       <Layout title="StatusFlare Admin - Login">
@@ -32,7 +35,7 @@ export function renderAdminPage(services: Service[], activeIncidents: Incident[]
             </div>}
             
             <a href="/admin/login/oidc" className="flex items-center justify-center gap-2 w-full py-3.5 px-4 rounded-lg bg-ctp-mauve text-ctp-crust text-center no-underline font-bold text-lg border-none transition-transform hover:scale-[1.02] active:scale-[0.98]">
-              <SimpleIcon name="siAuthelia" className="w-5 h-5" />
+              <ServiceIcon name="authelia" className="w-5 h-5" />
               Login with Authelia
             </a>
 
@@ -65,6 +68,36 @@ export function renderAdminPage(services: Service[], activeIncidents: Incident[]
             Logout
           </a>
         </header>
+
+        {user && (
+          <div className="bg-ctp-mantle p-6 rounded-xl border border-ctp-surface0 shadow-lg mb-6 flex flex-col md:flex-row justify-between items-center gap-4">
+            <div className="flex items-center gap-4">
+              <div className="p-3 rounded-full bg-ctp-mauve/10 text-ctp-mauve">
+                <UserIcon size={24} />
+              </div>
+              <div>
+                <h3 className="m-0 text-lg font-bold text-ctp-text">{user.email}</h3>
+                <p className="m-0 text-sm text-ctp-overlay0">Logged in via Authelia</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-4">
+              <div className="text-right">
+                <p className="m-0 text-sm font-semibold text-ctp-text">Outage Alerts</p>
+                <p className="m-0 text-xs text-ctp-overlay0">{user.notifications_enabled ? 'Currently Receiving' : 'Muted'}</p>
+              </div>
+              <form method="POST" action="/admin/notifications/toggle">
+                <input type="hidden" name="enabled" value={user.notifications_enabled ? '0' : '1'} />
+                <button type="submit" className={`flex items-center gap-2 px-4 py-2 rounded-lg font-bold transition-all active:scale-95 border-none cursor-pointer ${
+                  user.notifications_enabled 
+                    ? 'bg-ctp-red/10 text-ctp-red hover:bg-ctp-red/20' 
+                    : 'bg-ctp-green/10 text-ctp-green hover:bg-ctp-green/20'
+                }`}>
+                  {user.notifications_enabled ? <><BellOff size={18} /> Disable</> : <><Bell size={18} /> Enable</>}
+                </button>
+              </form>
+            </div>
+          </div>
+        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
           <div className="bg-ctp-mantle p-6 rounded-xl border border-ctp-surface0 shadow-lg">

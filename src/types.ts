@@ -48,3 +48,18 @@ export interface Incident {
   created_at: string;
   resolved_at: string | null;
 }
+
+export interface StatusChange {
+  serviceName: string;
+  status: 'up' | 'down';
+  previousStatus: string;
+  statusCode: number | null;
+  responseSnippet: string | null;
+  time: string;
+}
+
+export interface User {
+  email: string;
+  notifications_enabled: number;
+  last_login: string;
+}

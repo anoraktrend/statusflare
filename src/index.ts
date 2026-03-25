@@ -1,10 +1,10 @@
 import { renderStatusPage } from './pages/StatusPage';
 import { renderAdminPage } from './pages/AdminPage';
 import { renderServiceDetailPage } from './pages/ServiceDetailPage';
-import { Env, Service } from './types';
+import { Env, Service, StatusChange } from './types';
 import { isAuthenticated, hashPassword } from './utils/auth';
 import { performHealthCheck } from './services/checker';
-import { sendEmail, sendDiscordNotification } from './utils/notifications';
+import { sendEmail, sendDiscordNotification, notifyStatusChanges } from './utils/notifications';
 import { svgToPng } from './utils/image';
 // @ts-ignore
 import sanitize from 'sanitize';
@@ -58,7 +58,12 @@ function generateBadgeSvg(status: string, width: string, height: string): string
 export default {
   async scheduled(controller: ScheduledController, env: Env, ctx: ExecutionContext) {
     const { results } = await env.status_db.prepare('SELECT * FROM services').all<Service>();
-    ctx.waitUntil(Promise.all(results.map(service => performHealthCheck(env, service))));
+    const checkPromises = results.map(service => performHealthCheck(env, service));
+    const statusChanges = (await Promise.all(checkPromises)).filter((c): c is StatusChange => c !== null);
+    
+    if (statusChanges.length > 0) {
+      ctx.waitUntil(notifyStatusChanges(env, statusChanges));
+    }
   },
 
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
@@ -106,7 +111,13 @@ export default {
 
     if (path === '/api/check') {
       const { results } = await env.status_db.prepare('SELECT * FROM services').all<Service>();
-      await Promise.all(results.map(service => performHealthCheck(env, service)));
+      const checkPromises = results.map(service => performHealthCheck(env, service));
+      const statusChanges = (await Promise.all(checkPromises)).filter((c): c is StatusChange => c !== null);
+      
+      if (statusChanges.length > 0) {
+        ctx.waitUntil(notifyStatusChanges(env, statusChanges));
+      }
+
       return new Response('Health check triggered and saved to D1', {
         headers: { 'Access-Control-Allow-Origin': '*' }
       });
@@ -229,8 +240,22 @@ export default {
       
       const tokens = await tokenRes.json() as any;
       
+      // Extract email from id_token or fallback to sub
+      let email = 'admin';
+      if (tokens.id_token) {
+        const payload = jose.decodeJwt(tokens.id_token);
+        email = (payload.email as string) || (payload.sub as string);
+      } else {
+        email = tokens.sub || 'admin';
+      }
+
+      // Register or update user
+      await env.status_db.prepare(
+        'INSERT INTO users (email, last_login) VALUES (?, CURRENT_TIMESTAMP) ON CONFLICT(email) DO UPDATE SET last_login = CURRENT_TIMESTAMP'
+      ).bind(email).run();
+      
       const secret = new TextEncoder().encode(env.SESSION_SECRET);
-      const sessionJwt = await new jose.SignJWT({ sub: tokens.sub || 'admins' })
+      const sessionJwt = await new jose.SignJWT({ sub: email })
         .setProtectedHeader({ alg: 'HS256' })
         .setIssuedAt()
         .setExpirationTime('2h')
@@ -267,7 +292,7 @@ export default {
             });
           }
         }
-        return new Response(renderAdminPage([], [], 'Invalid Password', false, oidcConfigured), { headers: { 'Content-Type': 'text/html' } });
+        return new Response(renderAdminPage([], [], undefined, 'Invalid Password', false, oidcConfigured), { headers: { 'Content-Type': 'text/html' } });
       }
 
       if (adminPath === '/admin/login/oidc') {
@@ -285,8 +310,17 @@ export default {
         return new Response(null, { status: 302, headers: { 'Location': '/admin', 'Set-Cookie': 'session=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT' } });
       }
 
-      if (!await isAuthenticated(request, env)) {
-        return new Response(renderAdminPage([], [], undefined, false, oidcConfigured), { headers: { 'Content-Type': 'text/html' } });
+      const authPayload = await isAuthenticated(request, env) as any;
+      if (!authPayload) {
+        return new Response(renderAdminPage([], [], undefined, undefined, false, oidcConfigured), { headers: { 'Content-Type': 'text/html' } });
+      }
+
+      if (adminPath === '/admin/notifications/toggle' && request.method === 'POST') {
+        const formData = await request.formData();
+        const enabled = formData.get('enabled') === '1' ? 1 : 0;
+        await env.status_db.prepare('UPDATE users SET notifications_enabled = ? WHERE email = ?')
+          .bind(enabled, authPayload.sub).run();
+        return new Response(null, { status: 302, headers: { 'Location': '/admin' } });
       }
 
       if (adminPath === '/admin/add' && request.method === 'POST') {
@@ -357,7 +391,9 @@ export default {
       const { results: services } = await env.status_db.prepare('SELECT * FROM services').all<Service>();
       const { results: activeIncidents } = await env.status_db.prepare('SELECT i.*, s.name as service_name FROM incidents i LEFT JOIN services s ON i.service_id = s.id WHERE i.status = "open"').all<any>();
       
-      return new Response(renderAdminPage(services, activeIncidents, undefined, true, oidcConfigured), {
+      const user = await env.status_db.prepare('SELECT * FROM users WHERE email = ?').bind(authPayload.sub).first<any>();
+
+      return new Response(renderAdminPage(services, activeIncidents, user, undefined, true, oidcConfigured), {
         headers: { 'Content-Type': 'text/html' },
       });
     }
