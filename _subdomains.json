@@ -8,7 +8,7 @@
     },
     { 
       "name": "LDAP (lldap)", 
-      "url": "https://lldap.helltop.net", 
+      "url": "https://ldap.helltop.net", 
       "healthEndpoint": "/",
       "method": "GET",
       "icon": "siLinuxserver"
