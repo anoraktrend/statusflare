@@ -1,15 +1,15 @@
 import { Env } from '../types';
 import { redirect, html } from '../utils/response';
 import { createSessionJwt, sessionCookie } from './session';
+import { hashPassword } from '../utils/auth';
+import { renderAdminPage } from '../pages/AdminPage';
 import * as db from './db';
 import { sendEmail, sendDiscordNotification } from '../utils/notifications';
+import { decodeJwt } from 'jose';
 // @ts-expect-error Missing types
 import sanitize from 'sanitize';
 
 export async function handlePasswordLogin(env: Env, formData: FormData) {
-	const { hashPassword, isAuthenticated } = await import('../utils/auth');
-	const { renderAdminPage } = await import('../pages/AdminPage');
-
 	const password = formData.get('password') as string;
 	if (!env.ADMIN_PASSWORD_HASH) {
 		return html(renderAdminPage([], [], undefined, 'Admin password not configured', false, true));
@@ -28,40 +28,42 @@ export async function handlePasswordLogin(env: Env, formData: FormData) {
 }
 
 export async function handleOidcCallback(env: Env, code: string) {
-	const { renderAdminPage } = await import('../pages/AdminPage');
+	try {
+		const tokenRes = await fetch(`${env.AUTHELIA_ISSUER}/api/oidc/token`, {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+			body: new URLSearchParams({
+				grant_type: 'authorization_code',
+				code,
+				redirect_uri: env.OIDC_REDIRECT_URI,
+				client_id: env.AUTHELIA_CLIENT_ID,
+				client_secret: env.AUTHELIA_CLIENT_SECRET,
+			}),
+		});
 
-	const tokenRes = await fetch(`${env.AUTHELIA_ISSUER}/api/oidc/token`, {
-		method: 'POST',
-		headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-		body: new URLSearchParams({
-			grant_type: 'authorization_code',
-			code,
-			redirect_uri: env.OIDC_REDIRECT_URI,
-			client_id: env.AUTHELIA_CLIENT_ID,
-			client_secret: env.AUTHELIA_CLIENT_SECRET,
-		}),
-	});
+		if (!tokenRes.ok) {
+			return html(renderAdminPage([], [], undefined, `Token exchange failed: ${await tokenRes.text()}`, false, true));
+		}
 
-	if (!tokenRes.ok) {
-		return html(renderAdminPage([], [], undefined, `Token exchange failed: ${await tokenRes.text()}`, false, true));
+		const tokens = (await tokenRes.json()) as { id_token?: string; sub?: string };
+		let email = 'admin';
+		if (tokens.id_token) {
+			const payload = decodeJwt(tokens.id_token);
+			email = (payload.email as string) || (payload.sub as string);
+		} else {
+			email = tokens.sub || 'admin';
+		}
+
+		await db.registerUser(env, email);
+		const token = await createSessionJwt(env, email);
+		return new Response(null, {
+			status: 302,
+			headers: { Location: '/admin', 'Set-Cookie': sessionCookie(token, 7200) },
+		});
+	} catch (e: unknown) {
+		const msg = e instanceof Error ? e.message : String(e);
+		return html(renderAdminPage([], [], undefined, `Callback error: ${msg}`, false, true));
 	}
-
-	const tokens = (await tokenRes.json()) as { id_token?: string; sub?: string };
-	let email = 'admin';
-	if (tokens.id_token) {
-		const { decodeJwt } = await import('jose');
-		const payload = decodeJwt(tokens.id_token);
-		email = (payload.email as string) || (payload.sub as string);
-	} else {
-		email = tokens.sub || 'admin';
-	}
-
-	await db.registerUser(env, email);
-	const token = await createSessionJwt(env, email);
-	return new Response(null, {
-		status: 302,
-		headers: { Location: '/admin', 'Set-Cookie': sessionCookie(token, 7200) },
-	});
 }
 
 export async function handleToggleNotifications(env: Env, formData: FormData, email: string) {
