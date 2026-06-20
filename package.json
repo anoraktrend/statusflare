@@ -9,7 +9,14 @@
     "dev": "bun run build:css && wrangler dev",
     "start": "wrangler dev",
     "test": "vitest",
-    "cf-typegen": "wrangler types"
+    "cf-typegen": "wrangler types",
+    "lint": "gts lint",
+    "clean": "gts clean",
+    "compile": "tsc",
+    "fix": "gts fix",
+    "prepare": "npm run compile",
+    "pretest": "npm run compile",
+    "posttest": "npm run lint"
   },
   "devDependencies": {
     "@catppuccin/tailwindcss": "^1.0.0",
@@ -20,7 +27,8 @@
     "tailwindcss": "^4.2.2",
     "typescript": "^6.0.2",
     "vitest": "^4.1.1",
-    "wrangler": "^4.77.0"
+    "wrangler": "^4.77.0",
+    "gts": "^7.0.0"
   },
   "dependencies": {
     "@resvg/resvg-wasm": "^2.6.2",

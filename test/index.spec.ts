@@ -64,7 +64,7 @@ describe('status-worker', () => {
 
 	it('returns HTML for GET /', async () => {
 		const request = new Request('http://example.com/');
-		const response = await SELF.fetch(request);
+		const response = await SELF.fetch(request as any);
 		expect(response.status).toBe(200);
 		expect(response.headers.get('Content-Type')).toContain('text/html');
 		const text = await response.text();
@@ -73,7 +73,7 @@ describe('status-worker', () => {
 
 	it('returns JSON for GET /api/status', async () => {
 		const request = new Request('http://example.com/api/status');
-		const response = await SELF.fetch(request);
+		const response = await SELF.fetch(request as any);
 		expect(response.status).toBe(200);
 		expect(response.headers.get('Content-Type')).toContain('application/json');
 		const data = await response.json() as any;
@@ -85,7 +85,7 @@ describe('status-worker', () => {
 
 	it('returns an SVG badge for GET /badge/Test%20Service.svg', async () => {
 		const request = new Request('http://example.com/badge/Test%20Service.svg');
-		const response = await SELF.fetch(request);
+		const response = await SELF.fetch(request as any);
 		expect(response.status).toBe(200);
 		expect(response.headers.get('Content-Type')).toContain('image/svg+xml');
 		const text = await response.text();
@@ -95,7 +95,7 @@ describe('status-worker', () => {
 
 	it('returns a PNG badge for GET /badge/Test%20Service.png', async () => {
 		const request = new Request('http://example.com/badge/Test%20Service.png');
-		const response = await SELF.fetch(request);
+		const response = await SELF.fetch(request as any);
 		if (response.status === 500) {
 			console.error(await response.text());
 		}
@@ -107,7 +107,7 @@ describe('status-worker', () => {
 
 	it('returns 404 for unknown routes', async () => {
 		const request = new Request('http://example.com/unknown');
-		const response = await SELF.fetch(request);
+		const response = await SELF.fetch(request as any);
 		expect(response.status).toBe(404);
 	});
 });
