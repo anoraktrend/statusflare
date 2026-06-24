@@ -11,8 +11,9 @@ export function renderStatusPage(
 	manualIncidents: Incident[],
 	system?: { history: { timestamp: string; status: string; latency_ms: number }[]; uptime: string },
 ) {
-	const allUp = services.every((s) => s.latest.status === 'up');
-	const allDown = services.length > 0 && services.every((s) => s.latest.status === 'down');
+	const checkedServices = services.filter((s) => s.latest.status !== 'unknown');
+	const allUp = checkedServices.length > 0 && checkedServices.every((s) => s.latest.status === 'up');
+	const allDown = checkedServices.length > 0 && checkedServices.every((s) => s.latest.status === 'down');
 	const hasManualIncident = manualIncidents.length > 0;
 
 	let overallStatusText = 'All Systems Operational';
@@ -25,7 +26,7 @@ export function renderStatusPage(
 		overallStatusColor = 'ctp-red';
 		overallStatusIcon = 'down';
 		overallStatusHex = '#f38ba8'; // Mocha Red
-	} else if (!allUp) {
+	} else if (!allUp && checkedServices.length > 0) {
 		overallStatusText = 'Partial System Outage';
 		overallStatusColor = 'ctp-yellow';
 		overallStatusIcon = 'degraded';

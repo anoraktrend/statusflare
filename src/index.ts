@@ -70,11 +70,30 @@ async function handleStatusPage(env: Env, path: string): Promise<Response | null
 	]);
 
 	if (path === '/api/status') {
+		const checkedServices = servicesWithHistory.filter((s) => s.latest.status !== 'unknown');
+		const allUp = checkedServices.length > 0 && checkedServices.every((s) => s.latest.status === 'up');
+		const allDown = checkedServices.length > 0 && checkedServices.every((s) => s.latest.status === 'down');
+		const hasManualIncident = manualIncidents.results.length > 0;
+
+		let overallStatus: string;
+		let overallStatusText: string;
+		if (hasManualIncident || allDown) {
+			overallStatus = 'down';
+			overallStatusText = hasManualIncident ? 'Active System Incident' : 'Major System Outage';
+		} else if (!allUp && checkedServices.length > 0) {
+			overallStatus = 'degraded';
+			overallStatusText = 'Partial System Outage';
+		} else {
+			overallStatus = 'up';
+			overallStatusText = 'All Systems Operational';
+		}
+
 		return json({
 			services: servicesWithHistory,
 			historicalIncidents: historicalIncidents.results,
 			manualIncidents: manualIncidents.results,
 			system: { history: systemHistory.results, uptime: systemUptime },
+			overall: { status: overallStatus, text: overallStatusText },
 		});
 	}
 
@@ -83,6 +102,63 @@ async function handleStatusPage(env: Env, path: string): Promise<Response | null
 			history: systemHistory.results,
 			uptime: systemUptime,
 		}),
+	);
+}
+
+async function handleHealthCheck(env: Env): Promise<Response> {
+	const { results: services } = await db.getAllServices(env);
+	const { results: activeIncidents } = await db.getActiveIncidents(env);
+
+	const checkedServices: { name: string; status: string; latency_ms: number | null }[] = [];
+	for (const service of services) {
+		const { results: checks } = await env.status_db
+			.prepare('SELECT status, latency_ms FROM health_checks WHERE service_id = ? ORDER BY timestamp DESC LIMIT 1')
+			.bind(service.id)
+			.all<{ status: string; latency_ms: number | null }>();
+		checkedServices.push({
+			name: service.name,
+			status: checks[0]?.status ?? 'unknown',
+			latency_ms: checks[0]?.latency_ms ?? null,
+		});
+	}
+
+	const healthy = checkedServices.filter((s) => s.status === 'up');
+	const degraded = checkedServices.filter((s) => s.status !== 'up' && s.status !== 'unknown');
+	const unknown = checkedServices.filter((s) => s.status === 'unknown');
+
+	let status: string;
+	let statusCode: number;
+	if (activeIncidents.length > 0 || degraded.length === checkedServices.length) {
+		status = 'down';
+		statusCode = 503;
+	} else if (degraded.length > 0) {
+		status = 'degraded';
+		statusCode = 200;
+	} else {
+		status = 'up';
+		statusCode = 200;
+	}
+
+	return new Response(
+		JSON.stringify(
+			{
+				status,
+				services: {
+					total: checkedServices.length,
+					healthy: healthy.length,
+					degraded: degraded.length,
+					unknown: unknown.length,
+				},
+				incidents: activeIncidents.length,
+				checked: checkedServices,
+			},
+			null,
+			2,
+		),
+		{
+			status: statusCode,
+			headers: { 'Content-Type': 'application/json', ...corsHeaders() },
+		},
 	);
 }
 
@@ -155,6 +231,7 @@ export default {
 		return (
 			(await handleBadge(env, url, path)) ??
 			(path === '/api/check' ? await handleApiCheck(env, ctx) : null) ??
+			(path === '/api/health' ? await handleHealthCheck(env) : null) ??
 			(await handleServiceDetail(env, path)) ??
 			(await handleStatusPage(env, path)) ??
 			(await handleAdmin(env, request, url, path)) ??

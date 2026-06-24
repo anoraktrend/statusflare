@@ -129,8 +129,12 @@ export function addService(env: Env, data: Record<string, string | null>) {
 		.run();
 }
 
-export function removeService(env: Env, id: string | number) {
-	return env.status_db.prepare('DELETE FROM services WHERE id = ?').bind(id).run();
+export async function removeService(env: Env, id: string | number) {
+	await env.status_db.batch([
+		env.status_db.prepare('DELETE FROM health_checks WHERE service_id = ?').bind(id),
+		env.status_db.prepare('DELETE FROM incidents WHERE service_id = ?').bind(id),
+		env.status_db.prepare('DELETE FROM services WHERE id = ?').bind(id),
+	]);
 }
 
 export function createIncident(env: Env, title: string, message: string, service_id: string | null) {

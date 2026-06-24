@@ -6,8 +6,11 @@ import { renderAdminPage } from '../pages/AdminPage';
 import * as db from './db';
 import { sendEmail, sendDiscordNotification } from '../utils/notifications';
 import { decodeJwt } from 'jose';
-// @ts-expect-error Missing types
-import sanitize from 'sanitize';
+
+function sanitizeStr(value: string | null | undefined): string | null {
+	if (value === null || value === undefined) return null;
+	return String(value).replace(/[<>"'&]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;', '&': '&amp;' })[c] as string);
+}
 
 export async function handlePasswordLogin(env: Env, formData: FormData) {
 	const password = formData.get('password') as string;
@@ -73,18 +76,17 @@ export async function handleToggleNotifications(env: Env, formData: FormData, em
 }
 
 export async function handleAddService(env: Env, formData: FormData) {
-	const sanitizeValue = (name: string) => sanitize.value(formData.get(name) as string, 'string') || null;
 	const data = {
-		name: sanitize.value(formData.get('name') as string, 'string'),
-		url: sanitize.value(formData.get('url') as string, 'string'),
-		health_endpoint: sanitize.value(formData.get('health_endpoint') as string, 'string'),
-		method: sanitize.value(formData.get('method') as string, 'string') || 'GET',
-		headers_json: sanitizeValue('headers_json'),
-		body: sanitizeValue('body'),
-		token_url: sanitizeValue('token_url'),
-		token_body: sanitizeValue('token_body'),
-		token_response_path: sanitizeValue('token_response_path'),
-		icon: sanitizeValue('icon'),
+		name: sanitizeStr(formData.get('name') as string) || '',
+		url: sanitizeStr(formData.get('url') as string) || '',
+		health_endpoint: sanitizeStr(formData.get('health_endpoint') as string) || '',
+		method: sanitizeStr(formData.get('method') as string) || 'GET',
+		headers_json: sanitizeStr(formData.get('headers_json') as string),
+		body: sanitizeStr(formData.get('body') as string),
+		token_url: sanitizeStr(formData.get('token_url') as string),
+		token_body: sanitizeStr(formData.get('token_body') as string),
+		token_response_path: sanitizeStr(formData.get('token_response_path') as string),
+		icon: sanitizeStr(formData.get('icon') as string),
 	};
 	await db.addService(env, data);
 	return redirect('/admin');
@@ -97,8 +99,8 @@ export async function handleRemoveService(env: Env, formData: FormData) {
 }
 
 export async function handleCreateIncident(env: Env, formData: FormData) {
-	const title = sanitize.value(formData.get('title') as string, 'string');
-	const message = sanitize.value(formData.get('message') as string, 'string');
+	const title = sanitizeStr(formData.get('title') as string) || '';
+	const message = sanitizeStr(formData.get('message') as string) || '';
 	const service_id = (formData.get('service_id') as string) || null;
 
 	await db.createIncident(env, title, message, service_id);
