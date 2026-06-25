@@ -3,7 +3,7 @@ import { renderAdminPage } from './pages/AdminPage';
 import { renderServiceDetailPage } from './pages/ServiceDetailPage';
 import { Env, Service, StatusChange } from './types';
 import { isAuthenticated } from './utils/auth';
-import { generateBadgeSvg, getBadgeStatus } from './utils/badge';
+import { getBadgeStatus } from './utils/badge';
 import { svgToPng } from './utils/image';
 import { html, json, redirect, notFound, corsHeaders } from './utils/response';
 import { createSessionJwt, sessionCookie, clearSessionCookie } from './services/session';
@@ -16,15 +16,17 @@ async function handleBadge(env: Env, url: URL, path: string): Promise<Response |
 	if (!path.startsWith('/badge/')) return null;
 	const isPng = path.endsWith('.png');
 	const serviceName = decodeURIComponent(path.substring(7, path.length - 4));
-	const width = url.searchParams.get('w') || '512';
-	const height = url.searchParams.get('h') || width;
 
 	const status = await getBadgeStatus(env, serviceName);
-	const svg = generateBadgeSvg(status, width, height);
+	const badgeStatus = status === 'up' ? 'up' : status === 'down' ? 'down' : 'degraded';
+
+	const assetUrl = new URL(`/badges/${badgeStatus}.svg`, url.origin);
+	const assetRes = await env.ASSETS.fetch(assetUrl.toString());
+	const svgText = await assetRes.text();
 
 	if (isPng) {
 		try {
-			const png = await svgToPng(svg, parseInt(width), parseInt(height), resvgWasm);
+			const png = await svgToPng(svgText, 512, 512, resvgWasm);
 			return new Response(new Uint8Array(png), {
 				headers: { 'Content-Type': 'image/png', 'Cache-Control': 'public, max-age=60', ...corsHeaders() },
 			});
@@ -33,8 +35,8 @@ async function handleBadge(env: Env, url: URL, path: string): Promise<Response |
 		}
 	}
 
-	return new Response(svg, {
-		headers: { 'Content-Type': 'image/svg+xml', 'Cache-Control': 'no-cache, no-store, must-revalidate', ...corsHeaders() },
+	return new Response(svgText, {
+		headers: { 'Content-Type': 'image/svg+xml', 'Cache-Control': 'public, max-age=60', ...corsHeaders() },
 	});
 }
 
