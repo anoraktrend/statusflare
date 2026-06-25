@@ -24,26 +24,16 @@ export function generateBadgeSvg(status: string, width: string, height: string):
 }
 
 export async function getBadgeStatus(env: Env, serviceName: string): Promise<string> {
-	const name = serviceName.toLowerCase();
-	if (name === 'all' || name === 'global') {
-		const { results } = await env.status_db.prepare(`
-      SELECT status FROM health_checks 
-      WHERE id IN (SELECT MAX(id) FROM health_checks GROUP BY service_id)
-    `).all<{ status: string }>();
+	if (serviceName === 'all' || serviceName.toLowerCase() === 'global') {
+		const { results } = await env.status_db
+			.prepare('SELECT h.status FROM health_checks h JOIN (SELECT MAX(id) as id FROM health_checks GROUP BY service_id) latest ON h.id = latest.id')
+			.all<{ status: string }>();
 		return results.length > 0 && results.every((r) => r.status === 'up') ? 'up' : 'down';
 	}
 
-	const result = await env.status_db.prepare(`
-    SELECT s.name, h.status
-    FROM services s
-    LEFT JOIN (
-      SELECT service_id, status
-      FROM health_checks
-      WHERE id IN (SELECT MAX(id) FROM health_checks GROUP BY service_id)
-    ) h ON s.id = h.service_id
-    WHERE LOWER(s.name) = LOWER(?) OR LOWER(s.name) LIKE LOWER(?)
-    LIMIT 1
-  `).bind(serviceName, `%${serviceName}%`).first() as { status: string } | null;
-
+	const result = await env.status_db
+		.prepare('SELECT h.status FROM services s JOIN health_checks h ON h.service_id = s.id WHERE s.name = ? ORDER BY h.id DESC LIMIT 1')
+		.bind(serviceName)
+		.first<{ status: string }>();
 	return result?.status || 'unknown';
 }

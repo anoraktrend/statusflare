@@ -12,6 +12,7 @@ CREATE TABLE IF NOT EXISTS services (
   token_response_path TEXT,
   icon TEXT
 );
+CREATE INDEX IF NOT EXISTS idx_services_name ON services(name);
 
 -- Table for caching tokens (JWTs, etc)
 CREATE TABLE IF NOT EXISTS kv_cache (
@@ -31,6 +32,7 @@ CREATE TABLE IF NOT EXISTS health_checks (
   timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (service_id) REFERENCES services(id)
 );
+CREATE INDEX IF NOT EXISTS idx_health_checks_service_id ON health_checks(service_id);
 
 -- Table for manual incident management
 CREATE TABLE IF NOT EXISTS incidents (
