@@ -1,65 +1,36 @@
 import { Env, StatusChange } from '../types';
+import { err } from './helpers';
 
 export async function sendDiscordNotification(env: Env, title: string, description: string, color: number = 0x5865f2) {
 	if (!env.DISCORD_WEBHOOK_URL) return;
-
-	const body = {
-		embeds: [
-			{
-				title,
-				description,
-				color,
-				timestamp: new Date().toISOString(),
-				footer: { text: 'StatusFlare Monitoring' },
-			},
-		],
-	};
 
 	try {
 		await fetch(env.DISCORD_WEBHOOK_URL, {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify(body),
+			body: JSON.stringify({
+				embeds: [{ title, description, color, timestamp: new Date().toISOString(), footer: { text: 'StatusFlare Monitoring' } }],
+			}),
 		});
-	} catch (e: unknown) {
-		const error = e instanceof Error ? e.message : String(e);
-		console.error(`[Discord] Webhook error: ${error}`);
+	} catch (e) {
+		console.error(`[Discord] Webhook error: ${err(e)}`);
 	}
 }
 
-export async function sendEmail(env: Env, subject: string, text: string, html?: string) {
-	if (!env.MAILGUN_API_KEY || !env.MAILGUN_DOMAIN || !env.NOTIFICATION_EMAIL) {
-		console.warn('[Email] Skipping email send: Mailgun configuration missing');
-		return;
-	}
-
-	const from = env.MAILGUN_FROM || `StatusFlare <alerts@${env.MAILGUN_DOMAIN}>`;
-	const formData = new URLSearchParams();
-	formData.append('from', from);
-	formData.append('to', env.NOTIFICATION_EMAIL);
-	formData.append('subject', subject);
-	formData.append('text', text);
-	if (html) {
-		formData.append('html', html);
-	}
+export async function sendEmail(env: Env, to: string, subject: string, text: string, html?: string) {
+	if (!env.MAILGUN_API_KEY || !env.MAILGUN_DOMAIN) return;
 
 	try {
+		const form = new URLSearchParams({ from: env.MAILGUN_FROM || `StatusFlare <alerts@${env.MAILGUN_DOMAIN}>`, to, subject, text });
+		if (html) form.set('html', html);
 		const res = await fetch(`https://api.mailgun.net/v3/${env.MAILGUN_DOMAIN}/messages`, {
 			method: 'POST',
-			headers: {
-				Authorization: 'Basic ' + btoa(`api:${env.MAILGUN_API_KEY}`),
-				'Content-Type': 'application/x-www-form-urlencoded',
-			},
-			body: formData.toString(),
+			headers: { Authorization: 'Basic ' + btoa(`api:${env.MAILGUN_API_KEY}`), 'Content-Type': 'application/x-www-form-urlencoded' },
+			body: form.toString(),
 		});
-
-		if (!res.ok) {
-			const errText = await res.text();
-			console.error(`[Email] Mailgun error ${res.status}: ${errText}`);
-		}
-	} catch (e: unknown) {
-		const error = e instanceof Error ? e.message : String(e);
-		console.error(`[Email] Fetch error: ${error}`);
+		if (!res.ok) console.error(`[Email] Mailgun error ${res.status}: ${await res.text()}`);
+	} catch (e) {
+		console.error(`[Email] Fetch error: ${err(e)}`);
 	}
 }
 
@@ -158,42 +129,6 @@ export async function notifyStatusChanges(env: Env, changes: StatusChange[]) {
       </html>
     `;
 
-		await sendEmailTo(env, toList, subject, text, html);
-	}
-}
-
-async function sendEmailTo(env: Env, to: string, subject: string, text: string, html?: string) {
-	if (!env.MAILGUN_API_KEY || !env.MAILGUN_DOMAIN) {
-		console.warn('[Email] Skipping email send: Mailgun configuration missing');
-		return;
-	}
-
-	const from = env.MAILGUN_FROM || `StatusFlare <alerts@${env.MAILGUN_DOMAIN}>`;
-	const formData = new URLSearchParams();
-	formData.append('from', from);
-	formData.append('to', to);
-	formData.append('subject', subject);
-	formData.append('text', text);
-	if (html) {
-		formData.append('html', html);
-	}
-
-	try {
-		const res = await fetch(`https://api.mailgun.net/v3/${env.MAILGUN_DOMAIN}/messages`, {
-			method: 'POST',
-			headers: {
-				Authorization: 'Basic ' + btoa(`api:${env.MAILGUN_API_KEY}`),
-				'Content-Type': 'application/x-www-form-urlencoded',
-			},
-			body: formData.toString(),
-		});
-
-		if (!res.ok) {
-			const errText = await res.text();
-			console.error(`[Email] Mailgun error ${res.status}: ${errText}`);
-		}
-	} catch (e: unknown) {
-		const error = e instanceof Error ? e.message : String(e);
-		console.error(`[Email] Fetch error: ${error}`);
+		await sendEmail(env, toList, subject, text, html);
 	}
 }

@@ -1,5 +1,6 @@
 import { Env } from '../types';
 import { redirect, html } from '../utils/response';
+import { err } from '../utils/helpers';
 import { createSessionJwt, sessionCookie } from './session';
 import { hashPassword } from '../utils/auth';
 import { renderAdminPage } from '../pages/AdminPage';
@@ -63,9 +64,8 @@ export async function handleOidcCallback(env: Env, code: string) {
 			status: 302,
 			headers: { Location: '/admin', 'Set-Cookie': sessionCookie(token, 7200) },
 		});
-	} catch (e: unknown) {
-		const msg = e instanceof Error ? e.message : String(e);
-		return html(renderAdminPage([], [], undefined, `Callback error: ${msg}`, false, true));
+	} catch (e) {
+		return html(renderAdminPage([], [], undefined, `Callback error: ${err(e)}`, false, true));
 	}
 }
 
@@ -111,11 +111,10 @@ export async function handleCreateIncident(env: Env, formData: FormData) {
 		if (service) serviceName = service.name;
 	}
 
-	await sendEmail(
-		env,
-		`[StatusFlare] NEW INCIDENT: ${title}`,
-		`Incident: ${title}\nAffected Service: ${serviceName}\nMessage: ${message}\nTime: ${new Date().toISOString()}`,
-	);
+	if (env.NOTIFICATION_EMAIL) {
+		await sendEmail(env, env.NOTIFICATION_EMAIL, `[StatusFlare] NEW INCIDENT: ${title}`,
+			`Incident: ${title}\nAffected Service: ${serviceName}\nMessage: ${message}\nTime: ${new Date().toISOString()}`);
+	}
 	await sendDiscordNotification(
 		env,
 		`🚨 NEW INCIDENT: ${title}`,
@@ -132,10 +131,10 @@ export async function handleResolveIncident(env: Env, formData: FormData) {
 	const incident = await db.getIncidentWithService(env, id);
 	await db.resolveIncident(env, id);
 
-	if (incident) {
+	if (incident && env.NOTIFICATION_EMAIL) {
 		const subject = `[StatusFlare] RESOLVED: ${incident.title}`;
 		const text = `Incident "${incident.title}" for ${incident.service_name || 'System Wide'} has been resolved.\nTime: ${new Date().toISOString()}`;
-		await sendEmail(env, subject, text);
+		await sendEmail(env, env.NOTIFICATION_EMAIL, subject, text);
 		await sendDiscordNotification(
 			env,
 			`✅ RESOLVED: ${incident.title}`,

@@ -1,19 +1,9 @@
 import * as jose from 'jose';
 import { Env } from '../types';
+import { cookies } from './helpers';
 
 export async function isAuthenticated(request: Request, env: Env) {
-	const cookieHeader = request.headers.get('Cookie') || '';
-
-	const cookies = cookieHeader.split(';').reduce(
-		(acc, cookie) => {
-			const [name, ...value] = cookie.trim().split('=');
-			if (name) acc[name] = value.join('=');
-			return acc;
-		},
-		{} as Record<string, string>,
-	);
-
-	const sessionToken = cookies['session'];
+	const sessionToken = cookies(request.headers.get('Cookie') || '')['session'];
 
 	if (!sessionToken) return false;
 

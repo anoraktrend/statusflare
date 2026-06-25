@@ -1,4 +1,5 @@
 import { Env, Service, Incident, HealthCheck, User } from '../types';
+import { performHealthCheck } from './checker';
 
 export function getAllServices(env: Env) {
 	return env.status_db.prepare('SELECT * FROM services').all<Service>();
@@ -24,18 +25,30 @@ export function getServiceIncidents(env: Env, serviceId: number) {
 
 export async function getServicesWithRecentHistory(env: Env) {
 	const { results: services } = await getAllServices(env);
+	if (services.length === 0) return [];
+	const ids = services.map((s) => s.id);
+	const placeholders = ids.map(() => '?').join(',');
+
 	const { results: history } = await env.status_db
 		.prepare(`
-      SELECT * FROM (
-        SELECT service_id, status, latency_ms, status_code, response_snippet, timestamp,
-        ROW_NUMBER() OVER(PARTITION BY service_id ORDER BY timestamp DESC) as rn
-        FROM health_checks
-      ) WHERE rn <= 30
+      SELECT service_id, status, latency_ms, status_code, response_snippet, timestamp
+      FROM health_checks
+      WHERE service_id IN (${placeholders})
+        AND id IN (SELECT id FROM (SELECT id, ROW_NUMBER() OVER(PARTITION BY service_id ORDER BY timestamp DESC) as rn FROM health_checks) WHERE rn <= 30)
+      ORDER BY timestamp DESC
     `)
+		.bind(...ids)
 		.all<{ service_id: number; status: string; timestamp: string; latency_ms: number; status_code: number | null; response_snippet: string }>();
 
+	const historyByService = new Map<number, typeof history>();
+	for (const h of history) {
+		const list = historyByService.get(h.service_id);
+		if (list) list.push(h);
+		else historyByService.set(h.service_id, [h]);
+	}
+
 	return services.map((s) => {
-		const sHistory = history.filter((h) => h.service_id === s.id);
+		const sHistory = historyByService.get(s.id) || [];
 		return {
 			...s,
 			history: sHistory,
@@ -94,12 +107,8 @@ export async function getSystemUptime(env: Env): Promise<string> {
 
 export async function performAllHealthChecks(env: Env) {
 	const { results } = await getAllServices(env);
-	const checkPromises = results.map(async (service) => {
-		const { performHealthCheck } = await import('./checker');
-		return performHealthCheck(env, service);
-	});
-	const statusChanges = (await Promise.all(checkPromises)).filter((c): c is import('../types').StatusChange => c !== null);
-	return statusChanges;
+	const statusChanges = (await Promise.all(results.map((s) => performHealthCheck(env, s)))).filter(Boolean);
+	return statusChanges as import('../types').StatusChange[];
 }
 
 export function getUserByEmail(env: Env, email: string) {

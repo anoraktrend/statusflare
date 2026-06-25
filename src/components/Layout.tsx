@@ -28,15 +28,17 @@ export function Layout({
 	description = 'Real-time system health monitoring',
 	color = '#cba6f7',
 	badgeService = 'global',
+	host,
 	children,
 }: {
 	title: string;
 	description?: string;
 	color?: string;
 	badgeService?: string;
+	host?: string;
 	children: import('preact').ComponentChildren;
 }) {
-	const badgeUrl = `https://status.helltop.net/badge/${encodeURIComponent(badgeService)}.png?w=1200&h=630`;
+	const badgeUrl = `https://${host || 'status.helltop.net'}/badge/${encodeURIComponent(badgeService)}.png?w=1200&h=630`;
 
 	return (
 		<html lang="en" className="mocha">

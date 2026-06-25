@@ -1,11 +1,12 @@
 import { renderStatusPage } from './pages/StatusPage';
 import { renderAdminPage } from './pages/AdminPage';
 import { renderServiceDetailPage } from './pages/ServiceDetailPage';
-import { Env, Service, StatusChange } from './types';
+import { Env, StatusChange } from './types';
 import { isAuthenticated } from './utils/auth';
 import { getBadgeStatus } from './utils/badge';
 import { svgToPng } from './utils/image';
 import { html, json, redirect, notFound, corsHeaders } from './utils/response';
+import { err, overallStatus } from './utils/helpers';
 import { createSessionJwt, sessionCookie, clearSessionCookie } from './services/session';
 import * as db from './services/db';
 import * as admin from './services/admin';
@@ -21,8 +22,7 @@ async function handleBadge(env: Env, url: URL, path: string): Promise<Response |
 	const badgeStatus = status === 'up' ? 'up' : status === 'down' ? 'down' : 'degraded';
 
 	const assetUrl = new URL(`/badges/${badgeStatus}.svg`, url.origin);
-	const assetRes = await env.ASSETS.fetch(assetUrl.toString());
-	const svgText = await assetRes.text();
+	const svgText = await (await env.ASSETS.fetch(assetUrl.toString())).text();
 
 	if (isPng) {
 		try {
@@ -30,8 +30,8 @@ async function handleBadge(env: Env, url: URL, path: string): Promise<Response |
 			return new Response(new Uint8Array(png), {
 				headers: { 'Content-Type': 'image/png', 'Cache-Control': 'public, max-age=60', ...corsHeaders() },
 			});
-		} catch (e: unknown) {
-			return new Response(`Error generating PNG: ${e instanceof Error ? e.message : String(e)}`, { status: 500 });
+		} catch (e) {
+			return new Response(`Error generating PNG: ${err(e)}`, { status: 500 });
 		}
 	}
 
@@ -40,10 +40,46 @@ async function handleBadge(env: Env, url: URL, path: string): Promise<Response |
 	});
 }
 
-async function handleApiCheck(env: Env, ctx: ExecutionContext): Promise<Response | null> {
+async function handleApiCheck(env: Env, ctx: ExecutionContext, path: string): Promise<Response | null> {
+	if (path !== '/api/check') return null;
 	const statusChanges = await db.performAllHealthChecks(env);
 	if (statusChanges.length > 0) ctx.waitUntil(notifyStatusChanges(env, statusChanges));
 	return new Response('Health check triggered and saved to D1', { headers: corsHeaders() });
+}
+
+async function handleHealthEndpoint(env: Env, path: string): Promise<Response | null> {
+	if (path !== '/api/health') return null;
+	const { results: services } = await db.getAllServices(env);
+	const { results: activeIncidents } = await db.getActiveIncidents(env);
+
+	const checkedServices = services.map((s) => ({
+		name: s.name,
+		status: 'unknown' as string,
+		latency_ms: null as number | null,
+	}));
+
+	const { results: latest } = await env.status_db
+		.prepare('SELECT s.name, h.status, h.latency_ms FROM services s LEFT JOIN (SELECT service_id, status, latency_ms, ROW_NUMBER() OVER(PARTITION BY service_id ORDER BY timestamp DESC) as rn FROM health_checks) h ON s.id = h.service_id AND h.rn = 1')
+		.all<{ name: string; status: string | null; latency_ms: number | null }>();
+
+	const checked = latest.map((s) => ({ name: s.name, status: s.status || 'unknown', latency_ms: s.latency_ms }));
+	const healthy = checked.filter((s) => s.status === 'up');
+	const degraded = checked.filter((s) => s.status !== 'up' && s.status !== 'unknown');
+	const unknown = checked.filter((s) => s.status === 'unknown');
+
+	const hasDown = activeIncidents.length > 0 || degraded.length === checked.length;
+	const statusCode = hasDown ? 503 : 200;
+
+	return jsonWithStatus({
+		status: hasDown ? 'down' : degraded.length > 0 ? 'degraded' : 'up',
+		services: { total: checked.length, healthy: healthy.length, degraded: degraded.length, unknown: unknown.length },
+		incidents: activeIncidents.length,
+		checked,
+	}, statusCode);
+}
+
+function jsonWithStatus(data: unknown, status: number): Response {
+	return new Response(JSON.stringify(data, null, 2), { status, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } });
 }
 
 async function handleServiceDetail(env: Env, path: string): Promise<Response | null> {
@@ -71,31 +107,15 @@ async function handleStatusPage(env: Env, path: string): Promise<Response | null
 		db.getSystemUptime(env),
 	]);
 
+	const status = overallStatus(servicesWithHistory, manualIncidents.results);
+
 	if (path === '/api/status') {
-		const checkedServices = servicesWithHistory.filter((s) => s.latest.status !== 'unknown');
-		const allUp = checkedServices.length > 0 && checkedServices.every((s) => s.latest.status === 'up');
-		const allDown = checkedServices.length > 0 && checkedServices.every((s) => s.latest.status === 'down');
-		const hasManualIncident = manualIncidents.results.length > 0;
-
-		let overallStatus: string;
-		let overallStatusText: string;
-		if (hasManualIncident || allDown) {
-			overallStatus = 'down';
-			overallStatusText = hasManualIncident ? 'Active System Incident' : 'Major System Outage';
-		} else if (!allUp && checkedServices.length > 0) {
-			overallStatus = 'degraded';
-			overallStatusText = 'Partial System Outage';
-		} else {
-			overallStatus = 'up';
-			overallStatusText = 'All Systems Operational';
-		}
-
 		return json({
 			services: servicesWithHistory,
 			historicalIncidents: historicalIncidents.results,
 			manualIncidents: manualIncidents.results,
 			system: { history: systemHistory.results, uptime: systemUptime },
-			overall: { status: overallStatus, text: overallStatusText },
+			overall: { status: status.status, text: status.text },
 		});
 	}
 
@@ -107,99 +127,28 @@ async function handleStatusPage(env: Env, path: string): Promise<Response | null
 	);
 }
 
-async function handleHealthCheck(env: Env): Promise<Response> {
-	const { results: services } = await db.getAllServices(env);
-	const { results: activeIncidents } = await db.getActiveIncidents(env);
-
-	const checkedServices: { name: string; status: string; latency_ms: number | null }[] = [];
-	for (const service of services) {
-		const { results: checks } = await env.status_db
-			.prepare('SELECT status, latency_ms FROM health_checks WHERE service_id = ? ORDER BY timestamp DESC LIMIT 1')
-			.bind(service.id)
-			.all<{ status: string; latency_ms: number | null }>();
-		checkedServices.push({
-			name: service.name,
-			status: checks[0]?.status ?? 'unknown',
-			latency_ms: checks[0]?.latency_ms ?? null,
-		});
-	}
-
-	const healthy = checkedServices.filter((s) => s.status === 'up');
-	const degraded = checkedServices.filter((s) => s.status !== 'up' && s.status !== 'unknown');
-	const unknown = checkedServices.filter((s) => s.status === 'unknown');
-
-	let status: string;
-	let statusCode: number;
-	if (activeIncidents.length > 0 || degraded.length === checkedServices.length) {
-		status = 'down';
-		statusCode = 503;
-	} else if (degraded.length > 0) {
-		status = 'degraded';
-		statusCode = 200;
-	} else {
-		status = 'up';
-		statusCode = 200;
-	}
-
-	return new Response(
-		JSON.stringify(
-			{
-				status,
-				services: {
-					total: checkedServices.length,
-					healthy: healthy.length,
-					degraded: degraded.length,
-					unknown: unknown.length,
-				},
-				incidents: activeIncidents.length,
-				checked: checkedServices,
-			},
-			null,
-			2,
-		),
-		{
-			status: statusCode,
-			headers: { 'Content-Type': 'application/json', ...corsHeaders() },
-		},
-	);
-}
-
 async function handleAdmin(env: Env, request: Request, url: URL, path: string): Promise<Response | null> {
 	if (!path.startsWith('/admin')) return null;
 
 	const adminPath = path.replace(/\/$/, '');
 	const oidcConfigured = !!(env.AUTHELIA_ISSUER && env.AUTHELIA_CLIENT_ID);
 
-	// Public admin routes (no auth required)
-	if (adminPath === '/admin/login' && request.method === 'POST') {
-		return admin.handlePasswordLogin(env, await request.formData());
-	}
+	if (adminPath === '/admin/login' && request.method === 'POST') return admin.handlePasswordLogin(env, await request.formData());
 	if (adminPath === '/admin/login/oidc') {
-		const authUrl =
+		return redirect(
 			`${env.AUTHELIA_ISSUER}/api/oidc/authorization?` +
-			new URLSearchParams({
-				client_id: env.AUTHELIA_CLIENT_ID,
-				response_type: 'code',
-				scope: 'openid profile email',
-				redirect_uri: env.OIDC_REDIRECT_URI,
-				state: crypto.randomUUID(),
-			});
-		return redirect(authUrl);
+			new URLSearchParams({ client_id: env.AUTHELIA_CLIENT_ID, response_type: 'code', scope: 'openid profile email', redirect_uri: env.OIDC_REDIRECT_URI, state: crypto.randomUUID() }),
+		);
 	}
-	if (adminPath === '/admin/logout') {
-		return new Response(null, { status: 302, headers: { Location: '/admin', 'Set-Cookie': clearSessionCookie() } });
-	}
+	if (adminPath === '/admin/logout') return new Response(null, { status: 302, headers: { Location: '/admin', 'Set-Cookie': clearSessionCookie() } });
 	if (adminPath === '/admin/callback') {
 		const code = url.searchParams.get('code');
 		if (!code) return new Response('Bad Request', { status: 400 });
 		return admin.handleOidcCallback(env, code);
 	}
 
-	// Authenticated routes
 	const authPayload = (await isAuthenticated(request, env)) as { sub: string } | null;
-	if (!authPayload) {
-		return html(renderAdminPage([], [], undefined, undefined, false, oidcConfigured));
-	}
+	if (!authPayload) return html(renderAdminPage([], [], undefined, undefined, false, oidcConfigured));
 
 	if (request.method === 'POST') {
 		const formData = await request.formData();
@@ -210,7 +159,6 @@ async function handleAdmin(env: Env, request: Request, url: URL, path: string): 
 		if (adminPath === '/admin/incidents/resolve') return admin.handleResolveIncident(env, formData);
 	}
 
-	// Admin dashboard render
 	const [services, activeIncidents, user] = await Promise.all([
 		db.getAllServices(env),
 		db.getActiveIncidents(env),
@@ -232,8 +180,8 @@ export default {
 
 		return (
 			(await handleBadge(env, url, path)) ??
-			(path === '/api/check' ? await handleApiCheck(env, ctx) : null) ??
-			(path === '/api/health' ? await handleHealthCheck(env) : null) ??
+			(await handleApiCheck(env, ctx, path)) ??
+			(await handleHealthEndpoint(env, path)) ??
 			(await handleServiceDetail(env, path)) ??
 			(await handleStatusPage(env, path)) ??
 			(await handleAdmin(env, request, url, path)) ??

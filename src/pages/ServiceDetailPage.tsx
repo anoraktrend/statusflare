@@ -4,13 +4,14 @@ import { Layout } from '../components/Layout';
 import { ServiceIcon } from '../components/ServiceIcon';
 import { SvgDot } from '../components/SvgDot';
 import { ParsedData } from '../components/ParsedData';
+import { fmtTime } from '../utils/helpers';
 import { Service, Incident, HealthCheck } from '../types';
 
 export function renderServiceDetailPage(service: Service, history: HealthCheck[], incidents: Incident[]) {
 	const uptime = history.length > 0 ? ((history.filter((h) => h.status === 'up').length / history.length) * 100).toFixed(2) : '0.00';
 
 	const latest = history[0] || { status: 'unknown', timestamp: new Date().toISOString(), status_code: null, response_snippet: '' };
-	const lastChecked = new Date(latest.timestamp + (latest.timestamp.endsWith('Z') ? '' : 'Z')).toLocaleString();
+	const lastChecked = fmtTime(latest.timestamp);
 
 	let serviceColorHex = '#a6e3a1'; // Mocha Green
 	if (latest.status === 'down')
@@ -96,7 +97,7 @@ export function renderServiceDetailPage(service: Service, history: HealthCheck[]
 										<h4 className="m-0 text-ctp-red font-bold text-2xl">{i.title}</h4>
 										<p className="my-4 text-ctp-text text-lg leading-relaxed">{i.message}</p>
 										<div className="text-xs text-ctp-overlay0 flex items-center gap-2 uppercase tracking-widest font-bold">
-											<Clock size={14} /> Started: {new Date(i.created_at + (i.created_at.endsWith('Z') ? '' : 'Z')).toLocaleString()}
+											<Clock size={14} /> Started: {fmtTime(i.created_at)}
 										</div>
 									</div>
 								))}
@@ -123,7 +124,7 @@ export function renderServiceDetailPage(service: Service, history: HealthCheck[]
 										<tr className="border-b border-ctp-surface0 last:border-b-0 hover:bg-ctp-base/50 transition-colors">
 											<td className="p-6 text-sm whitespace-nowrap text-ctp-overlay0">
 												<div className="flex items-center gap-2">
-													<Clock size={14} /> {new Date(h.timestamp + (h.timestamp.endsWith('Z') ? '' : 'Z')).toLocaleString()}
+													<Clock size={14} /> {fmtTime(h.timestamp)}
 												</div>
 											</td>
 											<td className="p-6">

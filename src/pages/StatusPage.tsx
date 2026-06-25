@@ -3,6 +3,7 @@ import { Activity, ShieldCheck, TriangleAlert, ExternalLink, Clock, CircleCheck,
 import { Layout } from '../components/Layout';
 import { ServiceIcon } from '../components/ServiceIcon';
 import { SvgDot } from '../components/SvgDot';
+import { fmtTime, overallStatus } from '../utils/helpers';
 import { Incident } from '../types';
 
 export function renderStatusPage(
@@ -11,34 +12,13 @@ export function renderStatusPage(
 	manualIncidents: Incident[],
 	system?: { history: { timestamp: string; status: string; latency_ms: number }[]; uptime: string },
 ) {
-	const checkedServices = services.filter((s) => s.latest.status !== 'unknown');
-	const allUp = checkedServices.length > 0 && checkedServices.every((s) => s.latest.status === 'up');
-	const allDown = checkedServices.length > 0 && checkedServices.every((s) => s.latest.status === 'down');
-	const hasManualIncident = manualIncidents.length > 0;
-
-	let overallStatusText = 'All Systems Operational';
-	let overallStatusColor = 'ctp-green';
-	let overallStatusIcon = 'up';
-	let overallStatusHex = '#a6e3a1'; // Mocha Green
-
-	if (hasManualIncident || allDown) {
-		overallStatusText = hasManualIncident ? 'Active System Incident' : 'Major System Outage';
-		overallStatusColor = 'ctp-red';
-		overallStatusIcon = 'down';
-		overallStatusHex = '#f38ba8'; // Mocha Red
-	} else if (!allUp && checkedServices.length > 0) {
-		overallStatusText = 'Partial System Outage';
-		overallStatusColor = 'ctp-yellow';
-		overallStatusIcon = 'degraded';
-		overallStatusHex = '#f9e2af'; // Mocha Yellow
-	}
-
+	const status = overallStatus(services, manualIncidents);
 	const lastChecked = new Date().toLocaleString();
 
 	return (
 		'<!DOCTYPE html>' +
 		render(
-			<Layout title="StatusFlare - System Health" description={overallStatusText} color={overallStatusHex}>
+			<Layout title="StatusFlare - System Health" description={status.text} color={status.hex}>
 				<meta http-equiv="refresh" content="60" />
 				<style
 					dangerouslySetInnerHTML={{
@@ -48,9 +28,7 @@ export function renderStatusPage(
             70% { box-shadow: 0 0 0 10px transparent; }
             100% { box-shadow: 0 0 0 0 transparent; }
         }
-        .animate-pulse-custom {
-            animation: pulse 2s infinite;
-        }
+        .animate-pulse-custom { animation: pulse 2s infinite; }
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
       `,
@@ -71,11 +49,11 @@ export function renderStatusPage(
 					</header>
 
 					<div
-						className={`p-6 rounded-2xl bg-ctp-${overallStatusColor}/15 border-2 border-ctp-${overallStatusColor} text-ctp-${overallStatusColor} font-bold text-2xl flex items-center justify-center gap-4 mb-8 animate-pulse-custom shadow-lg`}
-						style={{ '--pulse-color': `color-mix(in srgb, var(--color-${overallStatusColor}) 40%, transparent)` }}
+						className={`p-6 rounded-2xl bg-${status.color}/15 border-2 border-${status.color} text-${status.color} font-bold text-2xl flex items-center justify-center gap-4 mb-8 animate-pulse-custom shadow-lg`}
+						style={{ '--pulse-color': `color-mix(in srgb, var(--color-${status.color.replace('ctp-', '')}) 40%, transparent)` }}
 					>
-						<SvgDot status={overallStatusIcon} size={28} />
-						{overallStatusText}
+						<SvgDot status={status.status} size={28} />
+						{status.text}
 					</div>
 
 					{system && (
@@ -109,7 +87,7 @@ export function renderStatusPage(
 											<div
 												className="flex-none flex items-center justify-center transition-transform hover:scale-150 hover:z-10"
 												key={h.timestamp}
-												title={`${new Date(h.timestamp + (h.timestamp.endsWith('Z') ? '' : 'Z')).toLocaleString()} - ${h.latency_ms}ms`}
+												title={`${fmtTime(h.timestamp)} - ${h.latency_ms}ms`}
 											>
 												<SvgDot status={h.status} size={16} />
 											</div>
@@ -134,7 +112,7 @@ export function renderStatusPage(
 										</h4>
 										<p className="text-ctp-text my-3 text-base leading-relaxed">{i.message}</p>
 										<div className="text-xs text-ctp-overlay0 flex items-center gap-1.5 uppercase font-bold tracking-wider">
-											<Clock size={12} /> Started: {new Date(i.created_at + (i.created_at.endsWith('Z') ? '' : 'Z')).toLocaleString()}
+											<Clock size={12} /> Started: {fmtTime(i.created_at)}
 										</div>
 									</div>
 								))}
@@ -146,55 +124,54 @@ export function renderStatusPage(
 						<Server size={16} /> Current Status
 					</div>
 					<div className="flex flex-col gap-5">
-						{services.map((s) => {
-							const latest = s.latest;
-							return (
-								<div
-									className="bg-ctp-mantle rounded-2xl border border-ctp-surface0 overflow-hidden hover:border-ctp-mauve hover:shadow-xl transition-all duration-300 cursor-pointer group"
-									key={s.name}
-									{...({ onClick: `window.location.href='/status/${encodeURIComponent(s.name)}'` } as any)}
-								>
-									<div className="p-6 flex justify-between items-center flex-wrap gap-4">
-										<div className="flex-1 min-w-[200px]">
-											<h3 className="m-0 text-xl font-bold flex items-center gap-2 group-hover:text-ctp-mauve transition-colors">
-												{s.name}
-												{latest.latency_ms && (
-													<span className="text-xs px-2 py-0.5 bg-ctp-surface0 rounded-lg text-ctp-overlay0 font-mono tracking-tighter">
-														{latest.latency_ms}ms
-													</span>
-												)}
-											</h3>
-											<p className="m-0 mt-1.5 text-sm text-ctp-overlay0 flex items-center gap-1.5">
-												<ServiceIcon name={s.icon || 'cloudflare'} className="w-3.5 h-3.5" useBrandColor />
-												{s.url}
-											</p>
-										</div>
-										<div
-											className={`px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-widest flex items-center gap-2 ${latest.status === 'up' ? 'bg-ctp-green/10 text-ctp-green border border-ctp-green/20' : 'bg-ctp-red/10 text-ctp-red border border-ctp-red/20'}`}
-										>
-											<SvgDot status={latest.status} size={12} />
-											{latest.status?.toUpperCase()}
-										</div>
+						{services.map((s) => (
+							<a
+								href={`/status/${encodeURIComponent(s.name)}`}
+								className="block bg-ctp-mantle rounded-2xl border border-ctp-surface0 overflow-hidden hover:border-ctp-mauve hover:shadow-xl transition-all duration-300 cursor-pointer group no-underline"
+								key={s.name}
+							>
+								<div className="p-6 flex justify-between items-center flex-wrap gap-4">
+									<div className="flex-1 min-w-[200px]">
+										<h3 className="m-0 text-xl font-bold flex items-center gap-2 group-hover:text-ctp-mauve transition-colors">
+											{s.name}
+											{s.latest.latency_ms && (
+												<span className="text-xs px-2 py-0.5 bg-ctp-surface0 rounded-lg text-ctp-overlay0 font-mono tracking-tighter">
+													{s.latest.latency_ms}ms
+												</span>
+											)}
+										</h3>
+										<p className="m-0 mt-1.5 text-sm text-ctp-overlay0 flex items-center gap-1.5">
+											<ServiceIcon name={s.icon || 'cloudflare'} className="w-3.5 h-3.5" useBrandColor />
+											{s.url}
+										</p>
 									</div>
+									<div
+										className={`px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-widest flex items-center gap-2 ${s.latest.status === 'up' ? 'bg-ctp-green/10 text-ctp-green border border-ctp-green/20' : 'bg-ctp-red/10 text-ctp-red border border-ctp-red/20'}`}
+									>
+										<SvgDot status={s.latest.status} size={12} />
+										{s.latest.status?.toUpperCase()}
+									</div>
+								</div>
+								{s.history.length > 0 && (
 									<div className="flex gap-1 px-6 pb-6 overflow-x-auto no-scrollbar mask-fade">
 										{[...s.history].reverse().map((h) => (
 											<div
 												className="flex-none flex items-center justify-center transition-transform hover:scale-150 hover:z-10"
 												key={h.timestamp}
-												title={`${new Date(h.timestamp + (h.timestamp.endsWith('Z') ? '' : 'Z')).toLocaleString()} - ${h.latency_ms}ms`}
+												title={`${fmtTime(h.timestamp)} - ${h.latency_ms}ms`}
 											>
 												<SvgDot status={h.status} size={14} />
 											</div>
 										))}
 									</div>
-									<div className="px-6 py-3 bg-ctp-crust/50 border-t border-ctp-surface0/30 flex justify-end">
-										<span className="text-ctp-mauve text-[0.7rem] uppercase font-bold tracking-widest flex items-center gap-1 group-hover:gap-2 transition-all">
-											View Analytics <ExternalLink size={10} />
-										</span>
-									</div>
+								)}
+								<div className="px-6 py-3 bg-ctp-crust/50 border-t border-ctp-surface0/30 flex justify-end">
+									<span className="text-ctp-mauve text-[0.7rem] uppercase font-bold tracking-widest flex items-center gap-1 group-hover:gap-2 transition-all">
+										View Analytics <ExternalLink size={10} />
+									</span>
 								</div>
-							);
-						})}
+							</a>
+						))}
 					</div>
 
 					<div className="text-sm mb-4 mt-12 text-ctp-overlay0 uppercase tracking-[0.2em] font-bold flex items-center gap-2">
@@ -225,7 +202,7 @@ export function renderStatusPage(
 									</div>
 									<div className="text-xs text-ctp-overlay0 whitespace-nowrap font-medium flex items-center gap-1.5">
 										<Clock size={12} />
-										{new Date(incident.timestamp + (incident.timestamp.endsWith('Z') ? '' : 'Z')).toLocaleString()}
+										{fmtTime(incident.timestamp)}
 									</div>
 								</div>
 							))

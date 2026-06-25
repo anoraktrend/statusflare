@@ -1,4 +1,5 @@
 import { Env, Service, StatusChange } from '../types';
+import { err } from '../utils/helpers';
 
 async function getCachedToken(db: D1Database, service: Service): Promise<{ token: string | null; error?: string }> {
 	if (!service.token_url || !service.token_body) return { token: null };
@@ -31,9 +32,8 @@ async function getCachedToken(db: D1Database, service: Service): Promise<{ token
 			return { token };
 		}
 		return { token: null, error: 'Token not found in response JSON' };
-	} catch (e: unknown) {
-		const error = e instanceof Error ? e.message : String(e);
-		return { token: null, error: `Auth Fetch Error: ${error}` };
+	} catch (e) {
+		return { token: null, error: `Auth Fetch Error: ${err(e)}` };
 	}
 }
 
@@ -74,9 +74,8 @@ export async function performHealthCheck(env: Env, service: Service): Promise<St
 				}
 				const customHeaders = JSON.parse(headersStr) as Record<string, string>;
 				Object.assign(headers, customHeaders);
-			} catch (e: unknown) {
-				const error = e instanceof Error ? e.message : String(e);
-				console.error(`[HealthCheck] Failed to parse headers for ${service.name}:`, error);
+			} catch (e) {
+				console.error(`[HealthCheck] Failed to parse headers for ${service.name}:`, err(e));
 			}
 		}
 
@@ -99,9 +98,9 @@ export async function performHealthCheck(env: Env, service: Service): Promise<St
 			// Fallback to raw text
 			responseSnippet = text.slice(0, 500);
 		}
-	} catch (error: unknown) {
+	} catch (e) {
 		status = 'down';
-		responseSnippet = error instanceof Error ? error.message : String(error);
+		responseSnippet = err(e);
 	}
 
 	const latency = Date.now() - start;
