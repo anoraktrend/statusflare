@@ -41,8 +41,7 @@
 		"OIDC_REDIRECT_URI": "https://status.helltop.net/admin/callback",
 		"MAILGUN_DOMAIN": "mail.helltop.net",
 		"MAILGUN_FROM": "StatusFlare <alerts@mail.helltop.net>",
-		"NOTIFICATION_EMAIL": "lucybrown@vivaldi.net",
-		"DISCORD_WEBHOOK_URL": ""
+		"NOTIFICATION_EMAIL": "lucybrown@vivaldi.net"
 	},
 	"observability": {
 		"enabled": true
