@@ -49,33 +49,26 @@ async function handleApiCheck(env: Env, ctx: ExecutionContext, path: string): Pr
 
 async function handleHealthEndpoint(env: Env, path: string): Promise<Response | null> {
 	if (path !== '/api/health') return null;
-	const { results: services } = await db.getAllServices(env);
-	const { results: activeIncidents } = await db.getActiveIncidents(env);
 
-	const checkedServices = services.map((s) => ({
-		name: s.name,
-		status: 'unknown' as string,
-		latency_ms: null as number | null,
-	}));
+	const { results: rows } = await env.status_db
+		.prepare(`SELECT s.name, h.status, h.latency_ms, (SELECT COUNT(*) FROM incidents WHERE status = 'open') as incident_count
+      FROM services s LEFT JOIN health_checks h ON h.id = (SELECT MAX(id) FROM health_checks WHERE service_id = s.id)`)
+		.all<{ name: string; status: string | null; latency_ms: number | null; incident_count: number }>();
 
-	const { results: latest } = await env.status_db
-		.prepare('SELECT s.name, h.status, h.latency_ms FROM services s LEFT JOIN (SELECT service_id, status, latency_ms, ROW_NUMBER() OVER(PARTITION BY service_id ORDER BY timestamp DESC) as rn FROM health_checks) h ON s.id = h.service_id AND h.rn = 1')
-		.all<{ name: string; status: string | null; latency_ms: number | null }>();
-
-	const checked = latest.map((s) => ({ name: s.name, status: s.status || 'unknown', latency_ms: s.latency_ms }));
+	const incidentCount = rows[0]?.incident_count ?? 0;
+	const checked = rows.map((r) => ({ name: r.name, status: r.status || 'unknown', latency_ms: r.latency_ms }));
 	const healthy = checked.filter((s) => s.status === 'up');
 	const degraded = checked.filter((s) => s.status !== 'up' && s.status !== 'unknown');
 	const unknown = checked.filter((s) => s.status === 'unknown');
 
-	const hasDown = activeIncidents.length > 0 || degraded.length === checked.length;
-	const statusCode = hasDown ? 503 : 200;
+	const hasDown = incidentCount > 0 || degraded.length === checked.length;
 
 	return jsonWithStatus({
 		status: hasDown ? 'down' : degraded.length > 0 ? 'degraded' : 'up',
 		services: { total: checked.length, healthy: healthy.length, degraded: degraded.length, unknown: unknown.length },
-		incidents: activeIncidents.length,
+		incidents: incidentCount,
 		checked,
-	}, statusCode);
+	}, hasDown ? 503 : 200);
 }
 
 function jsonWithStatus(data: unknown, status: number): Response {
