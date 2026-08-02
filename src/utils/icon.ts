@@ -12,6 +12,9 @@ export function slugify(name: string): string {
 
 export const selfhstLightIconUrl = (slug: string) => `https://cdn.jsdelivr.net/gh/selfhst/icons@main/svg/${slug}-light.svg`;
 export const simpleIconUrl = (slug: string) => `https://cdn.simpleicons.org/${slug}`;
+// simple-icons serves icons in black by default; the rendered pages use the
+// light theme design, so the fallback must be white to match -light variants.
+export const simpleWhiteIconUrl = (slug: string) => `https://cdn.simpleicons.org/${slug}/ffffff`;
 
 /**
  * Resolves the best icon URL for a slug at render time.
@@ -29,9 +32,9 @@ export async function resolveIconUrl(slug: string): Promise<string> {
 	let url = lightUrl;
 	try {
 		const res = await fetch(lightUrl, { method: 'HEAD', signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) });
-		if (!res.ok) url = simpleIconUrl(slug);
+		if (!res.ok) url = simpleWhiteIconUrl(slug);
 	} catch {
-		url = simpleIconUrl(slug);
+		url = simpleWhiteIconUrl(slug);
 	}
 
 	iconCache.set(slug, { url, expires: now + CACHE_TTL_MS });
