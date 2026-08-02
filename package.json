@@ -12,6 +12,7 @@
     "cf-typegen": "wrangler types",
     "lint": "gts lint",
     "clean": "gts clean",
+    "clean:repo": "node scripts/cleanup.mjs",
     "compile": "tsc",
     "fix": "gts fix",
     "prepare": "npm run compile",

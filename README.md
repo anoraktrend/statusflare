@@ -1,6 +1,14 @@
 # StatusFlare 🛰️
 
-StatusFlare is a lightweight, self-hosted system health monitoring dashboard built on **Cloudflare Workers** and **D1 Database**. It provides real-time monitoring, incident management, and dynamic status badges with zero infrastructure overhead.
+StatusFlare is a lightweight, edge-hosted system health monitoring dashboard built on **Cloudflare Workers** and **D1 Database**. It provides real-time monitoring, incident management, and dynamic status badges with zero infrastructure overhead. 
+
+This is useful for the following usecases:
+
+- You want a FOSS solution for a system health deashboard, but you don't want to host it yourself.
+- You want to be sure of your service's public availability, but you don't want to pay companies that you don't trust.
+- You want a system health dashboard with discord webhook capabilities, a smooth default theme, and highly customizable
+interface that integrates with your current stack
+- all of the above.
 
 ![Status Dashboard](public/status.svg)
 
@@ -18,6 +26,16 @@ StatusFlare is a lightweight, self-hosted system health monitoring dashboard bui
 - **Email Notifications**: Integrated with Mailgun to send alerts when services go down or incidents are created/resolved.
 
 ## 🚀 Quick Start
+
+### Forking / Redistribution
+
+This repo contains personal configuration (domains, emails, an admin password hash). Before publishing a fork, remove it:
+
+```bash
+pnpm clean:repo   # replaces personal values with placeholders, deletes personal-only files
+```
+
+The only personal values remaining afterward are inside `scripts/cleanup.mjs` itself (its replacement table).
 
 ### Prerequisites
 
