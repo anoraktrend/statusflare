@@ -5,6 +5,7 @@ import { Env, StatusChange } from './types';
 import { isAuthenticated } from './utils/auth';
 import { getBadgeStatus } from './utils/badge';
 import { svgToPng } from './utils/image';
+import { slugify, resolveIconUrl, resolveServiceIconUrls } from './utils/icon';
 import { html, json, redirect, notFound, corsHeaders } from './utils/response';
 import { err, overallStatus } from './utils/helpers';
 import { createSessionJwt, sessionCookie, clearSessionCookie } from './services/session';
@@ -51,8 +52,10 @@ async function handleHealthEndpoint(env: Env, path: string): Promise<Response | 
 	if (path !== '/api/health') return null;
 
 	const { results: rows } = await env.status_db
-		.prepare(`SELECT s.name, h.status, h.latency_ms, (SELECT COUNT(*) FROM incidents WHERE status = 'open') as incident_count
-      FROM services s LEFT JOIN health_checks h ON h.id = (SELECT MAX(id) FROM health_checks WHERE service_id = s.id)`)
+		.prepare(
+			`SELECT s.name, h.status, h.latency_ms, (SELECT COUNT(*) FROM incidents WHERE status = 'open') as incident_count
+      FROM services s LEFT JOIN health_checks h ON h.id = (SELECT MAX(id) FROM health_checks WHERE service_id = s.id)`,
+		)
 		.all<{ name: string; status: string | null; latency_ms: number | null; incident_count: number }>();
 
 	const incidentCount = rows[0]?.incident_count ?? 0;
@@ -63,16 +66,22 @@ async function handleHealthEndpoint(env: Env, path: string): Promise<Response | 
 
 	const hasDown = incidentCount > 0 || degraded.length === checked.length;
 
-	return jsonWithStatus({
-		status: hasDown ? 'down' : degraded.length > 0 ? 'degraded' : 'up',
-		services: { total: checked.length, healthy: healthy.length, degraded: degraded.length, unknown: unknown.length },
-		incidents: incidentCount,
-		checked,
-	}, hasDown ? 503 : 200);
+	return jsonWithStatus(
+		{
+			status: hasDown ? 'down' : degraded.length > 0 ? 'degraded' : 'up',
+			services: { total: checked.length, healthy: healthy.length, degraded: degraded.length, unknown: unknown.length },
+			incidents: incidentCount,
+			checked,
+		},
+		hasDown ? 503 : 200,
+	);
 }
 
 function jsonWithStatus(data: unknown, status: number): Response {
-	return new Response(JSON.stringify(data, null, 2), { status, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } });
+	return new Response(JSON.stringify(data, null, 2), {
+		status,
+		headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+	});
 }
 
 async function handleServiceDetail(env: Env, path: string): Promise<Response | null> {
@@ -81,12 +90,13 @@ async function handleServiceDetail(env: Env, path: string): Promise<Response | n
 	const service = await db.getServiceByName(env, serviceName);
 	if (!service) return notFound('Service Not Found');
 
-	const [history, incidents] = await Promise.all([
+	const [history, incidents, iconUrl] = await Promise.all([
 		db.getServiceHealthHistory(env, service.id),
 		db.getServiceIncidents(env, service.id),
+		resolveIconUrl(slugify(service.icon || 'cloudflare')),
 	]);
 
-	return html(renderServiceDetailPage(service, history.results, incidents.results));
+	return html(renderServiceDetailPage(service, history.results, incidents.results, iconUrl));
 }
 
 async function handleStatusPage(env: Env, path: string): Promise<Response | null> {
@@ -99,6 +109,7 @@ async function handleStatusPage(env: Env, path: string): Promise<Response | null
 		db.getSystemHistory(env),
 		db.getSystemUptime(env),
 	]);
+	const iconUrls = await resolveServiceIconUrls(servicesWithHistory);
 
 	const status = overallStatus(servicesWithHistory, manualIncidents.results);
 
@@ -113,10 +124,16 @@ async function handleStatusPage(env: Env, path: string): Promise<Response | null
 	}
 
 	return html(
-		renderStatusPage(servicesWithHistory, historicalIncidents.results, manualIncidents.results, {
-			history: systemHistory.results,
-			uptime: systemUptime,
-		}),
+		renderStatusPage(
+			servicesWithHistory,
+			historicalIncidents.results,
+			manualIncidents.results,
+			{
+				history: systemHistory.results,
+				uptime: systemUptime,
+			},
+			iconUrls,
+		),
 	);
 }
 
@@ -130,10 +147,17 @@ async function handleAdmin(env: Env, request: Request, url: URL, path: string): 
 	if (adminPath === '/admin/login/oidc') {
 		return redirect(
 			`${env.AUTHELIA_ISSUER}/api/oidc/authorization?` +
-			new URLSearchParams({ client_id: env.AUTHELIA_CLIENT_ID, response_type: 'code', scope: 'openid profile email', redirect_uri: env.OIDC_REDIRECT_URI, state: crypto.randomUUID() }),
+				new URLSearchParams({
+					client_id: env.AUTHELIA_CLIENT_ID,
+					response_type: 'code',
+					scope: 'openid profile email',
+					redirect_uri: env.OIDC_REDIRECT_URI,
+					state: crypto.randomUUID(),
+				}),
 		);
 	}
-	if (adminPath === '/admin/logout') return new Response(null, { status: 302, headers: { Location: '/admin', 'Set-Cookie': clearSessionCookie() } });
+	if (adminPath === '/admin/logout')
+		return new Response(null, { status: 302, headers: { Location: '/admin', 'Set-Cookie': clearSessionCookie() } });
 	if (adminPath === '/admin/callback') {
 		const code = url.searchParams.get('code');
 		if (!code) return new Response('Bad Request', { status: 400 });

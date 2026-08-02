@@ -4,13 +4,21 @@ import { Layout } from '../components/Layout';
 import { ServiceIcon } from '../components/ServiceIcon';
 import { SvgDot } from '../components/SvgDot';
 import { fmtTime, overallStatus } from '../utils/helpers';
+import { slugify } from '../utils/icon';
 import { Incident } from '../types';
 
 export function renderStatusPage(
-	services: { name: string; url: string; icon?: string | null; history: { status: string; timestamp: string; latency_ms: number }[]; latest: { status: string; latency_ms?: number } }[],
+	services: {
+		name: string;
+		url: string;
+		icon?: string | null;
+		history: { status: string; timestamp: string; latency_ms: number }[];
+		latest: { status: string; latency_ms?: number };
+	}[],
 	historicalIncidents: { name: string; status_code: number; response_snippet: string; timestamp: string }[],
 	manualIncidents: Incident[],
 	system?: { history: { timestamp: string; status: string; latency_ms: number }[]; uptime: string },
+	iconUrls?: Map<string, string>,
 ) {
 	const status = overallStatus(services, manualIncidents);
 	const lastChecked = new Date().toLocaleString();
@@ -141,7 +149,12 @@ export function renderStatusPage(
 											)}
 										</h3>
 										<p className="m-0 mt-1.5 text-sm text-ctp-overlay0 flex items-center gap-1.5">
-											<ServiceIcon name={s.icon || 'cloudflare'} className="w-3.5 h-3.5" useBrandColor />
+											<ServiceIcon
+												name={s.icon || 'cloudflare'}
+												src={iconUrls?.get(slugify(s.icon || 'cloudflare'))}
+												className="w-3.5 h-3.5"
+												useBrandColor
+											/>
 											{s.url}
 										</p>
 									</div>
@@ -211,10 +224,15 @@ export function renderStatusPage(
 
 					<footer className="mt-16 text-center border-t border-ctp-surface0 pt-10 pb-20 space-y-4">
 						<div className="flex justify-center gap-6 text-ctp-subtext0">
-							<ServiceIcon name="cloudflare" className="w-6 h-6 hover:text-ctp-mauve transition-colors" />
-							<ServiceIcon name="github" className="w-6 h-6 hover:text-ctp-mauve transition-colors" />
-							<ServiceIcon name="discord" className="w-6 h-6 hover:text-ctp-mauve transition-colors" />
-							<ServiceIcon name="tailwindcss" className="w-6 h-6 hover:text-ctp-mauve transition-colors" />
+							<a href="https://cloudflare.com" target="_blank" rel="noopener noreferrer" aria-label="Cloudflare">
+								<ServiceIcon name="cloudflare" className="w-6 h-6 hover:text-ctp-mauve transition-colors" />
+							</a>
+							<a href="https://github.com/anoraktrend/statusflare" target="_blank" rel="noopener noreferrer" aria-label="GitHub">
+								<ServiceIcon name="github" className="w-6 h-6 hover:text-ctp-mauve transition-colors" />
+							</a>
+							<a href="https://tailwindcss.com" target="_blank" rel="noopener noreferrer" aria-label="Tailwind CSS">
+								<ServiceIcon name="tailwindcss" className="w-6 h-6 hover:text-ctp-mauve transition-colors" />
+							</a>
 						</div>
 						<div className="text-ctp-subtext0 text-xs font-bold tracking-[0.3em] uppercase">Powered by Workers & D1</div>
 						<div className="text-ctp-overlay0 text-[0.7rem] italic">Last checked: {lastChecked}</div>

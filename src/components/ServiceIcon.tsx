@@ -1,11 +1,15 @@
+import { slugify, simpleIconUrl } from '../utils/icon';
+
 export function ServiceIcon({
 	name,
 	className = '',
 	useBrandColor = false,
+	src,
 }: {
 	name: string;
 	className?: string;
 	useBrandColor?: boolean;
+	src?: string;
 }) {
 	if (!name) {
 		return (
@@ -15,20 +19,40 @@ export function ServiceIcon({
 		);
 	}
 
-	// Convert name to slug format
-	// 1. Remove 'si' prefix if it exists (legacy support)
-	let slug = name.startsWith('si') && name.length > 2 ? name.substring(2) : name;
+	const slug = slugify(name);
 
-	// 2. Convert to lowercase and replace spaces/underscores with hyphens
-	slug = slug
-		.toLowerCase()
-		.replace(/[ _]/g, '-')
-		.replace(/[^a-z0-9-+.]/g, '');
+	// Server-resolved URL (the pages are fully server-rendered, so fallbacks
+	// are determined at render time rather than via client-side onerror).
+	if (src) {
+		if (useBrandColor) {
+			return <img src={src} className={className} alt={name} width="24" height="24" />;
+		}
+		return (
+			<span
+				role="img"
+				aria-label={name}
+				className={`inline-block ${className}`}
+				style={{
+					width: '1em',
+					height: '1em',
+					backgroundColor: 'currentColor',
+					maskImage: `url(${src})`,
+					WebkitMaskImage: `url(${src})`,
+					maskSize: 'contain',
+					WebkitMaskSize: 'contain',
+					maskRepeat: 'no-repeat',
+					WebkitMaskRepeat: 'no-repeat',
+					maskPosition: 'center',
+					WebkitMaskPosition: 'center',
+					verticalAlign: 'middle',
+				}}
+			/>
+		);
+	}
 
 	// selfhst/icons CDN - SVG is preferred, using -light variant
 	const lightIconUrl = `https://cdn.jsdelivr.net/gh/selfhst/icons@main/svg/${slug}-light.svg`;
 	const fallbackIconUrl = `https://cdn.jsdelivr.net/gh/selfhst/icons@main/svg/${slug}.svg`;
-	const simpleIconUrl = `https://cdn.simpleicons.org/${slug}`;
 
 	if (useBrandColor) {
 		return (
@@ -47,7 +71,7 @@ export function ServiceIcon({
 					} else if (img.src.endsWith(`${slug}.svg`)) {
 						img.src = `https://cdn.jsdelivr.net/gh/selfhst/icons@main/png/${slug}.png`;
 					} else if (img.src.includes('selfhst/icons')) {
-						img.src = simpleIconUrl;
+						img.src = simpleIconUrl(slug);
 					}
 				}}
 			/>
@@ -64,8 +88,8 @@ export function ServiceIcon({
 				width: '1em',
 				height: '1em',
 				backgroundColor: 'currentColor',
-				maskImage: `url(${lightIconUrl}), url(${fallbackIconUrl}), url(${simpleIconUrl})`,
-				WebkitMaskImage: `url(${lightIconUrl}), url(${fallbackIconUrl}), url(${simpleIconUrl})`,
+				maskImage: `url(${lightIconUrl}), url(${fallbackIconUrl}), url(${simpleIconUrl(slug)})`,
+				WebkitMaskImage: `url(${lightIconUrl}), url(${fallbackIconUrl}), url(${simpleIconUrl(slug)})`,
 				maskSize: 'contain',
 				WebkitMaskSize: 'contain',
 				maskRepeat: 'no-repeat',
