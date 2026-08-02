@@ -1,4 +1,4 @@
-import { slugify, simpleIconUrl } from '../utils/icon';
+import { slugify, simpleIconUrl, simpleWhiteIconUrl } from '../utils/icon';
 
 export function ServiceIcon({
 	name,
@@ -23,9 +23,10 @@ export function ServiceIcon({
 
 	// Server-resolved URL (the pages are fully server-rendered, so fallbacks
 	// are determined at render time rather than via client-side onerror).
+	// Brand icons are white variants; invert them in the latte (light) theme.
 	if (src) {
 		if (useBrandColor) {
-			return <img src={src} className={className} alt={name} width="24" height="24" />;
+			return <img src={src} className={`${className} latte:invert`} alt={name} width="24" height="24" />;
 		}
 		return (
 			<span
@@ -58,7 +59,7 @@ export function ServiceIcon({
 		return (
 			<img
 				src={lightIconUrl}
-				className={className}
+				className={`${className} latte:invert`}
 				alt={name}
 				width="24"
 				height="24"
@@ -71,7 +72,7 @@ export function ServiceIcon({
 					} else if (img.src.endsWith(`${slug}.svg`)) {
 						img.src = `https://cdn.jsdelivr.net/gh/selfhst/icons@main/png/${slug}.png`;
 					} else if (img.src.includes('selfhst/icons')) {
-						img.src = simpleIconUrl(slug);
+						img.src = simpleWhiteIconUrl(slug);
 					}
 				}}
 			/>

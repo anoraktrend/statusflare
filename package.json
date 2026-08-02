@@ -36,8 +36,6 @@
     "lucide-preact": "^1.6.0",
     "preact": "^10.29.0",
     "preact-render-to-string": "^6.6.6"
-  },
-  "trustedDependencies": [
-    "@parcel/watcher"
-  ]
+  }
 }
+
