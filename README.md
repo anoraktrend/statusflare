@@ -37,6 +37,16 @@ pnpm clean:repo   # replaces personal values with placeholders, deletes personal
 
 The only personal values remaining afterward are inside `scripts/cleanup.mjs` itself (its replacement table).
 
+### Fresh Deployment
+
+New operators configure everything interactively (domain, notification email, admin auth — password or Authelia — plus optional Mailgun/Discord secrets, D1 creation, and local setup):
+
+```bash
+pnpm setup
+```
+
+An admin password or Authelia client ID + secret is required; all other inputs are optional.
+
 ### Prerequisites
 
 - [Cloudflare Account](https://dash.cloudflare.com/sign-up)

@@ -13,6 +13,7 @@
     "lint": "gts lint",
     "clean": "gts clean",
     "clean:repo": "node scripts/cleanup.mjs",
+    "setup": "node scripts/setup.mjs",
     "compile": "tsc",
     "fix": "gts fix",
     "prepare": "npm run compile",

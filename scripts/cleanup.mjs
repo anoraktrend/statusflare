@@ -94,10 +94,5 @@ console.log('created .dev.vars.example');
 
 console.log(`\nDone. ${changed} file(s) changed. Commit the result before publishing:\n`);
 console.log('  git add -A && git commit -m "chore: clean personal configuration"');
-console.log('\nNext steps for the new operator:\n');
-console.log('  1. cp .dev.vars.example .dev.vars   # fill in secrets');
-console.log('  2. Edit wrangler.jsonc: route, d1 database_id, vars');
-console.log('  3. pnpm install && pnpm cf-typegen');
-console.log('  4. pnpm wrangler d1 migrations apply status_db --local');
-console.log('  5. pnpm wrangler d1 execute status_db --local --file=./seed.sql');
-console.log('  6. pnpm deploy');
+console.log('\nNext step for the new operator:\n');
+console.log('  pnpm setup   # interactive: domain, email, secrets, D1, deps, seed');
