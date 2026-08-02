@@ -48,6 +48,12 @@
       "url": "https://vault.helltop.net", 
       "healthEndpoint": "/alive",
       "icon": "siBitwarden"
+    },
+    { 
+      "name": "Romm", 
+      "url": "https://games.helltop.net", 
+      "healthEndpoint": "/api/heartbeat",
+      "icon": "siRetroarch"
     }
   ]
 }
