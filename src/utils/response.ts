@@ -5,7 +5,7 @@ export function html(body: string, extra?: Record<string, string>): Response {
 }
 
 export function json(data: unknown): Response {
-	return new Response(JSON.stringify(data, null, 2), {
+	return new Response(JSON.stringify(data), {
 		headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
 	});
 }

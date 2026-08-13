@@ -1,6 +1,16 @@
 import { Env, Service, StatusChange } from '../types';
 import { err } from '../utils/helpers';
 
+const SNIPPET_LIMIT = 1024;
+const SNIPPET_PRETTY_LIMIT = 1000;
+const SNIPPET_RAW_LIMIT = 500;
+const CHECK_TIMEOUT_MS = 10000;
+
+export interface CheckOutcome {
+	change: StatusChange | null;
+	insert: D1PreparedStatement;
+}
+
 async function getCachedToken(db: D1Database, service: Service): Promise<{ token: string | null; error?: string }> {
 	if (!service.token_url || !service.token_body) return { token: null };
 	const cacheKey = `token_${service.id}`;
@@ -37,19 +47,67 @@ async function getCachedToken(db: D1Database, service: Service): Promise<{ token
 	}
 }
 
-export async function performHealthCheck(env: Env, service: Service): Promise<StatusChange | null> {
+function concatBytes(parts: Uint8Array[]): Uint8Array {
+	const total = parts.reduce((acc, p) => acc + p.length, 0);
+	const out = new Uint8Array(total);
+	let offset = 0;
+	for (const p of parts) {
+		out.set(p, offset);
+		offset += p.length;
+	}
+	return out;
+}
+
+/**
+ * Reads at most SNIPPET_LIMIT bytes from the response body so large payloads
+ * are not fully buffered. Preference is preserved: JSON bodies are
+ * pretty-printed when fully read, otherwise raw text is returned.
+ */
+export async function captureResponseSnippet(response: Response): Promise<string> {
+	const reader = response.body?.getReader();
+	if (!reader) {
+		const text = await response.text();
+		return text.slice(0, SNIPPET_RAW_LIMIT);
+	}
+
+	const parts: Uint8Array[] = [];
+	let total = 0;
+	let truncated = false;
+	try {
+		while (total < SNIPPET_LIMIT) {
+			const { done, value } = await reader.read();
+			if (done) break;
+			parts.push(value);
+			total += value.length;
+		}
+		if (total >= SNIPPET_LIMIT) {
+			truncated = true;
+			await reader.cancel();
+		}
+	} catch (e) {
+		return err(e);
+	} finally {
+		reader.releaseLock();
+	}
+
+	const text = new TextDecoder().decode(concatBytes(parts));
+	if (!truncated) {
+		try {
+			const json = JSON.parse(text);
+			return JSON.stringify(json, null, 2).slice(0, SNIPPET_PRETTY_LIMIT);
+		} catch {
+			// Not JSON, fall through to raw text
+		}
+	}
+	return text.slice(0, SNIPPET_RAW_LIMIT);
+}
+
+export async function performHealthCheck(env: Env, service: Service, previousStatus: string): Promise<CheckOutcome> {
 	const db = env.status_db;
 	const start = Date.now();
 	let status: 'up' | 'down' = 'down';
 	let statusCode: number | null = null;
 	let responseSnippet: string | null = null;
-
-	// Get previous status to detect changes
-	const lastCheck = await db
-		.prepare('SELECT status FROM health_checks WHERE service_id = ? ORDER BY timestamp DESC LIMIT 1')
-		.bind(service.id)
-		.first<{ status: string }>();
-	const previousStatus = lastCheck ? lastCheck.status : 'unknown';
 
 	try {
 		const baseUrl = service.url.replace(/\/$/, '');
@@ -83,36 +141,25 @@ export async function performHealthCheck(env: Env, service: Service): Promise<St
 			method: service.method || 'GET',
 			headers,
 			body: service.body || null,
-			signal: AbortSignal.timeout(10000),
+			signal: AbortSignal.timeout(CHECK_TIMEOUT_MS),
 		});
 
 		status = response.ok ? 'up' : 'down';
 		statusCode = response.status;
-		const text = await response.text();
-
-		try {
-			// Try to parse as JSON and format it nicely
-			const json = JSON.parse(text);
-			responseSnippet = JSON.stringify(json, null, 2).slice(0, 1000); // Allow larger snippet for JSON
-		} catch {
-			// Fallback to raw text
-			responseSnippet = text.slice(0, 500);
-		}
+		responseSnippet = await captureResponseSnippet(response);
 	} catch (e) {
 		status = 'down';
 		responseSnippet = err(e);
 	}
 
 	const latency = Date.now() - start;
-	// Store raw snippet for storage
-	await db
+	const insert = db
 		.prepare('INSERT INTO health_checks (service_id, status, status_code, response_snippet, latency_ms) VALUES (?, ?, ?, ?, ?)')
-		.bind(service.id, status, statusCode, responseSnippet || '', latency)
-		.run();
+		.bind(service.id, status, statusCode, responseSnippet || '', latency);
 
-	// Send alerts on status change
+	let change: StatusChange | null = null;
 	if (status !== previousStatus && previousStatus !== 'unknown') {
-		return {
+		change = {
 			serviceName: service.name,
 			status,
 			previousStatus,
@@ -121,5 +168,6 @@ export async function performHealthCheck(env: Env, service: Service): Promise<St
 			time: new Date().toISOString(),
 		};
 	}
-	return null;
+
+	return { change, insert };
 }

@@ -189,6 +189,12 @@ export default {
 	async scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext) {
 		const statusChanges = await db.performAllHealthChecks(env);
 		if (statusChanges.length > 0) ctx.waitUntil(notifyStatusChanges(env, statusChanges));
+
+		// Once a day, prune health check history to keep D1 lean and queries fast.
+		const now = new Date();
+		if (now.getUTCHours() === 3 && now.getUTCMinutes() === 0) {
+			ctx.waitUntil(db.cleanupOldHealthChecks(env, 90));
+		}
 	},
 
 	async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
