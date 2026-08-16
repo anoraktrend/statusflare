@@ -187,14 +187,15 @@ async function handleAdmin(env: Env, request: Request, url: URL, path: string): 
 
 export default {
 	async scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext) {
+		// Prune history BEFORE running checks so the database never stays full
+		// and silently blocks the INSERTs below (which would halt all monitoring).
+		const now = new Date();
+		if (now.getUTCHours() === 3) {
+			await db.cleanupOldHealthChecks(env, 90).catch((e) => console.error('[cron] cleanup failed:', e));
+		}
+
 		const statusChanges = await db.performAllHealthChecks(env);
 		if (statusChanges.length > 0) ctx.waitUntil(notifyStatusChanges(env, statusChanges));
-
-		// Once a day, prune health check history to keep D1 lean and queries fast.
-		const now = new Date();
-		if (now.getUTCHours() === 3 && now.getUTCMinutes() === 0) {
-			ctx.waitUntil(db.cleanupOldHealthChecks(env, 90));
-		}
 	},
 
 	async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
