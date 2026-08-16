@@ -523,6 +523,9 @@
   .rounded-2xl {
     border-radius: var(--radius-2xl);
   }
+  .rounded-\[3px\] {
+    border-radius: 3px;
+  }
   .rounded-full {
     border-radius: calc(infinity * 1px);
   }
@@ -617,6 +620,9 @@
       background-color: color-mix(in oklab, var(--catppuccin-color-crust) 50%, transparent);
     }
   }
+  .bg-ctp-green {
+    background-color: var(--catppuccin-color-green);
+  }
   .bg-ctp-green\/10 {
     background-color: var(--catppuccin-color-green);
     @supports (color: color-mix(in lab, red, red)) {
@@ -661,6 +667,9 @@
   }
   .bg-ctp-surface1 {
     background-color: var(--catppuccin-color-surface1);
+  }
+  .bg-ctp-yellow {
+    background-color: var(--catppuccin-color-yellow);
   }
   .p-2 {
     padding: calc(var(--spacing) * 2);

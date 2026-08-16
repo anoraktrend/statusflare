@@ -3,6 +3,7 @@ import { Activity, ShieldCheck, TriangleAlert, ExternalLink, Clock, CircleCheck,
 import { Layout } from '../components/Layout';
 import { ServiceIcon } from '../components/ServiceIcon';
 import { SvgDot } from '../components/SvgDot';
+import { StatusCells } from '../components/StatusCells';
 import { fmtTime, overallStatus } from '../utils/helpers';
 import { slugify } from '../utils/icon';
 import { Incident } from '../types';
@@ -90,17 +91,7 @@ export function renderStatusPage(
 									<div className="text-[0.7rem] uppercase text-ctp-overlay0 font-bold tracking-[0.2em] mb-4 flex items-center gap-2">
 										<History size={14} className="text-ctp-mauve" /> System History
 									</div>
-									<div className="flex gap-2 justify-between overflow-x-auto no-scrollbar mask-fade">
-										{[...system.history].reverse().map((h) => (
-											<div
-												className="flex-none flex items-center justify-center transition-transform hover:scale-150 hover:z-10"
-												key={h.timestamp}
-												title={`${fmtTime(h.timestamp)} - ${h.latency_ms}ms`}
-											>
-												<SvgDot status={h.status} size={16} />
-											</div>
-										))}
-									</div>
+									<StatusCells history={system.history} size={14} className="gap-2 justify-between" />
 								</div>
 							)}
 						</div>
@@ -165,19 +156,7 @@ export function renderStatusPage(
 										{s.latest.status?.toUpperCase()}
 									</div>
 								</div>
-								{s.history.length > 0 && (
-									<div className="flex gap-1 px-6 pb-6 overflow-x-auto no-scrollbar mask-fade">
-										{[...s.history].reverse().map((h) => (
-											<div
-												className="flex-none flex items-center justify-center transition-transform hover:scale-150 hover:z-10"
-												key={h.timestamp}
-												title={`${fmtTime(h.timestamp)} - ${h.latency_ms}ms`}
-											>
-												<SvgDot status={h.status} size={14} />
-											</div>
-										))}
-									</div>
-								)}
+								{s.history.length > 0 && <StatusCells history={s.history} className="px-6 pb-6" />}
 								<div className="px-6 py-3 bg-ctp-crust/50 border-t border-ctp-surface0/30 flex justify-end">
 									<span className="text-ctp-mauve text-[0.7rem] uppercase font-bold tracking-widest flex items-center gap-1 group-hover:gap-2 transition-all">
 										View Analytics <ExternalLink size={10} />
