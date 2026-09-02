@@ -158,6 +158,10 @@ dist
 .yarn/install-state.gz
 .pnp.\*
 
+# bun lockfile (pnpm is canonical)
+bun.lock
+bun.lockb
+
 # wrangler project
 
 .dev.vars*

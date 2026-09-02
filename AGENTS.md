@@ -7,13 +7,18 @@ This file provides essential technical context for AI agents working on this rep
 - **Package Manager:** `pnpm`
 - **Install Dependencies:** `pnpm install`
 - **Build Commands:**
+  - `pnpm build` (Builds CSS and generates Cloudflare types)
   - `pnpm build:css` (Compiles Tailwind CSS from `src/input.css` to `public/tailwind.css`)
   - `pnpm cf-typegen` (Generates TypeScript types for Cloudflare bindings)
+- **Quality:**
+  - `pnpm check` (Type-check via `tsc --noEmit`)
+  - `pnpm lint` / `pnpm fix` (Lint and auto-fix via `gts`)
 - **Running (Development):**
   - `pnpm dev` (Runs CSS build and Wrangler development server)
-  - `pnpm start` (Alias for `wrangler dev`)
 - **Deployment:**
   - `pnpm deploy` (Builds CSS and deploys to Cloudflare via Wrangler)
+- **Testing:**
+  - `pnpm test` (Runs Vitest suite)
 
 ## 🏗 Tech Stack
 

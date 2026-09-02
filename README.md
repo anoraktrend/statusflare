@@ -51,7 +51,7 @@ An admin password or Authelia client ID + secret is required; all other inputs a
 
 - [Cloudflare Account](https://dash.cloudflare.com/sign-up)
 - [Wrangler CLI](https://developers.cloudflare.com/workers/wrangler/install-setup/) installed and authenticated.
-- Node.js and npm (or pnpm).
+- Node.js and pnpm.
 
 ### Setup
 
@@ -63,30 +63,30 @@ An admin password or Authelia client ID + secret is required; all other inputs a
 
 2. **Install dependencies:**
    ```bash
-   npm install
+   pnpm install
    ```
 
 3. **Create your D1 Database:**
    ```bash
-   npx wrangler d1 create status_db
+   pnpm exec wrangler d1 create status_db
    ```
    Copy the `database_id` from the output and update it in your `wrangler.jsonc`.
 
 4. **Initialize the database schema:**
    ```bash
-   npx wrangler d1 execute status_db --file=schema.sql
+   pnpm exec wrangler d1 execute status_db --file=schema.sql
    ```
 
 5. **Set required secrets:**
    ```bash
    # Used for JWT session signing
-   npx wrangler secret put SESSION_SECRET
+   pnpm exec wrangler secret put SESSION_SECRET
    
    # Optional: For legacy password login (SHA-256 hash)
-   npx wrangler secret put ADMIN_PASSWORD_HASH
+   pnpm exec wrangler secret put ADMIN_PASSWORD_HASH
 
    # Email Alerts (Mailgun)
-   npx wrangler secret put MAILGUN_API_KEY
+   pnpm exec wrangler secret put MAILGUN_API_KEY
    ```
 
 6. **Configure Mailgun Variables:**
@@ -103,7 +103,7 @@ An admin password or Authelia client ID + secret is required; all other inputs a
 
 7. **Deploy to Cloudflare:**
    ```bash
-   npm run deploy
+   pnpm deploy
    ```
 
 ## 🛠️ Configuration
@@ -131,12 +131,12 @@ Edit `wrangler.jsonc` to configure your custom domain, OIDC provider (e.g., Auth
 
 Run local development server:
 ```bash
-npm run dev
+pnpm dev
 ```
 
 Run the test suite (Vitest + Cloudflare Workers Pool):
 ```bash
-npm test
+pnpm test
 ```
 
 ## 📄 License
