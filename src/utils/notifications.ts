@@ -1,5 +1,6 @@
 import { Env, StatusChange } from '../types';
 import { err } from './helpers';
+import { getDb } from '../lib/mongo';
 
 export async function sendDiscordNotification(env: Env, title: string, description: string, color: number = 0x5865f2) {
 	if (!env.DISCORD_WEBHOOK_URL) return;
@@ -64,10 +65,9 @@ export async function notifyStatusChanges(env: Env, changes: StatusChange[]) {
 	// --- Email Notification ---
 	if (env.MAILGUN_API_KEY) {
 		// Get all users who have notifications enabled
-		const { results: users } = await env.status_db
-			.prepare('SELECT email FROM users WHERE notifications_enabled = 1')
-			.all<{ email: string }>();
-		const recipientEmails = new Set(users.map((u) => u.email));
+		const db = await getDb(env);
+		const users = await db.collection('users').find({ notifications_enabled: 1 } as Record<string, unknown>).toArray();
+		const recipientEmails = new Set((users as Record<string, unknown>[]).map((u) => String(u.email)));
 
 		// Always include the default notification email if configured
 		if (env.NOTIFICATION_EMAIL) {

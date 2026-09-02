@@ -8,17 +8,16 @@
  *   3. Rewrites wrangler.jsonc (route pattern, vars, ADMIN_PASSWORD_HASH) and
  *      the badge host in src/components/Layout.tsx.
  *   4. Generates or updates .dev.vars with every value filled in (admin
- *      password is hashed with SHA-256, SESSION_SECRET is random).
- *   5. Optionally creates a D1 database and writes its id to wrangler.jsonc.
- *   6. Optionally installs dependencies, regenerates worker types, and
- *      applies local migrations + seed data.
+ *      password is hashed with SHA-256, SESSION_SECRET is random, MONGODB_URI/DB_NAME).
+ *   5. Optionally prompts for MongoDB Atlas URI or reminds about D1 transitional binding.
+ *   6. Optionally installs dependencies, regenerates worker types, builds CSS.
  *
  * Usage: node scripts/setup.mjs [--yes]
  *   --yes  accept all defaults (skips prompts, runs nothing)
  *
  * Scripted usage (piped input, one answer per line):
  *   statusHost, email, adminPassword, adminPasswordConfirm, autheliaClientId,
- *   autheliaClientSecret, mailgunApiKey, discordWebhook, createDb(y/N), runSetup(Y/n)
+ *   autheliaClientSecret, mailgunApiKey, discordWebhook, mongodbUri, runSetup(Y/n)
  */
 import { execSync } from 'node:child_process';
 import { createInterface } from 'node:readline/promises';
@@ -31,8 +30,7 @@ const LAYOUT = 'src/components/Layout.tsx';
 const DEV_VARS_EXAMPLE = '.dev.vars.example';
 const DEV_VARS = '.dev.vars';
 const HOST_RE = /^([a-z0-9]([a-z0-9-]*[a-z0-9])?\.)+[a-z0-9]([a-z0-9-]*[a-z0-9])?$/;
-// Single source for D1 identity — avoids hard-coded "status_db" repetition.
-const DB_NAME = 'status_db';
+const MONGODB_DEFAULT_URI = 'mongodb+srv://trenteartist_db_user:jjZ6kSI9fFesYkV2@statusdb.50ornhx.mongodb.net/statusflare?retryWrites=true&w=majority&appName=statusflare';
 
 const STATIC_VARS = [
 	'ADMIN_PASSWORD_HASH',
@@ -43,7 +41,7 @@ const STATIC_VARS = [
 	'MAILGUN_FROM',
 	'NOTIFICATION_EMAIL',
 ];
-const SECRET_VARS = ['AUTHELIA_CLIENT_SECRET', 'DISCORD_WEBHOOK_URL', 'MAILGUN_API_KEY', 'SESSION_SECRET'];
+const SECRET_VARS = ['AUTHELIA_CLIENT_SECRET', 'DISCORD_WEBHOOK_URL', 'MAILGUN_API_KEY', 'SESSION_SECRET', 'MONGODB_URI', 'MONGODB_DB_NAME'];
 
 const read = (path) => readFileSync(path, 'utf-8');
 const sha256 = (s) => createHash('sha256').update(s).digest('hex');
@@ -95,7 +93,8 @@ let autheliaSecret = '';
 let autheliaClientId = '';
 let mailgunKey = '';
 let discordWebhook = '';
-let createDb = false;
+let mongodbUri = '';
+let mongodbDbName = 'statusflare';
 let runSetup = false;
 
 if (!yesMode) {
@@ -174,8 +173,10 @@ if (!yesMode) {
 		}
 		mailgunKey = await askSecretLive('Mailgun API key');
 		discordWebhook = await askSecretLive('Discord webhook URL');
-		createDb = await askYesNo(`Create a new D1 database "${DB_NAME}"? (requires wrangler login) [y/N] `, false);
-		runSetup = await askYesNo('Install deps, regenerate types, apply local migrations and seed? [Y/n] ', true);
+		mongodbUri = await askSecretLive('MongoDB Atlas URI (blank to keep default)');
+		if (!mongodbUri) mongodbUri = MONGODB_DEFAULT_URI;
+		mongodbDbName = await askLive('MongoDB DB name', 'statusflare');
+		runSetup = await askYesNo('Install deps, regenerate types, build CSS? [Y/n] ', true);
 	} finally {
 		rl?.close();
 	}
@@ -251,6 +252,8 @@ setVar('AUTHELIA_CLIENT_SECRET', autheliaSecret || getVar('AUTHELIA_CLIENT_SECRE
 setVar('DISCORD_WEBHOOK_URL', discordWebhook || getVar('DISCORD_WEBHOOK_URL') || '');
 setVar('MAILGUN_API_KEY', mailgunKey || getVar('MAILGUN_API_KEY') || '');
 setVar('SESSION_SECRET', getVar('SESSION_SECRET') || randomBytes(32).toString('hex'));
+setVar('MONGODB_URI', mongodbUri || getVar('MONGODB_URI') || MONGODB_DEFAULT_URI);
+setVar('MONGODB_DB_NAME', mongodbDbName || getVar('MONGODB_DB_NAME') || 'statusflare');
 
 const wasNew = !existsSync(DEV_VARS);
 writeFileSync(DEV_VARS, devVars);
@@ -260,38 +263,24 @@ changed++;
 const missing = STATIC_VARS.concat(SECRET_VARS).filter((name) => !getVar(name));
 if (missing.length > 0) notes.push(`still empty in ${DEV_VARS}: ${missing.join(', ')}`);
 
-if (createDb) {
-	try {
-		const out = execSync(`${wranglerCmd(pm)} d1 create ${DB_NAME}`, { encoding: 'utf-8' });
-		const id = out.match(/database_id:\s*"?([a-f0-9-]+)"?/i)?.[1];
-		if (id) {
-			const content = read(WRANGLER);
-			writeFileSync(WRANGLER, content.replace(/("database_id":\s*")[^"]*(")/, `$1${id}$2`));
-			console.log(`created D1 database, wrote id to ${WRANGLER}`);
-			changed++;
-		} else {
-			notes.push(`could not parse database_id from \`wrangler d1 create ${DB_NAME}\`; set it manually in wrangler.jsonc`);
-		}
-	} catch (e) {
-		notes.push(`D1 creation failed (${e.message.trim().split('\n')[0]}); set database_id manually in ${WRANGLER}`);
-	}
-}
-
 if (runSetup) {
 	const w = wranglerCmd(pm);
-	for (const cmd of [
-		`${pm} install`,
-		`${pm} run cf-typegen`,
-		`${w} d1 migrations apply ${DB_NAME} --local`,
-		`${w} d1 execute ${DB_NAME} --local --file=./seed.sql`,
-	]) {
+	for (const cmd of [`${pm} install`, `${pm} run cf-typegen`, `${pm} run build:css`]) {
 		console.log(`\n$ ${cmd}`);
-		execSync(cmd, { stdio: 'inherit' });
+		try {
+			execSync(cmd, { stdio: 'inherit' });
+		} catch (e) {
+			notes.push(`${cmd} failed: ${e.message.split('\n')[0]}`);
+		}
 	}
+	notes.push('MongoDB Atlas is primary — no D1 migrations needed. Ensure Atlas indexes via getDb() ensureIndexes on first request.');
+	notes.push('To seed initial data, insert via MongoDB Compass or mongosh using schema.sql as reference.');
 }
 
 console.log(`\nDone. ${changed} file(s) changed.`);
 for (const n of notes) console.log(`note: ${n}`);
 console.log('\nFor production (secrets are never stored in wrangler.jsonc):\n');
 for (const name of SECRET_VARS) console.log(`  ${wranglerCmd(pm)} secret put ${name}`);
+console.log('  # MONGODB_URI must be the full Atlas URI with /statusflare path:');
+console.log('  # pnpm wrangler secret put MONGODB_URI  # paste: mongodb+srv://trenteartist_db_user:***@statusdb.50ornhx.mongodb.net/statusflare?retryWrites=true&w=majority&appName=statusflare');
 console.log('\nThen: pnpm deploy');

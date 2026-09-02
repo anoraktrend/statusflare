@@ -1,4 +1,5 @@
 import { Env } from '../types';
+import { getDb } from '../lib/mongo';
 
 const SVG_TEMPLATE = `<?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <svg width="{{WIDTH}}" height="{{HEIGHT}}" viewBox="0 0 512 512" version="1.1" xmlns="http://www.w3.org/2000/svg">
@@ -24,16 +25,35 @@ export function generateBadgeSvg(status: string, width: string, height: string):
 }
 
 export async function getBadgeStatus(env: Env, serviceName: string): Promise<string> {
+	const db = await getDb(env);
+
 	if (serviceName === 'all' || serviceName.toLowerCase() === 'global') {
-		const { results } = await env.status_db
-			.prepare('SELECT h.status FROM health_checks h JOIN (SELECT MAX(id) as id FROM health_checks GROUP BY service_id) latest ON h.id = latest.id')
-			.all<{ status: string }>();
-		return results.length > 0 && results.every((r) => r.status === 'up') ? 'up' : 'down';
+		const checks = await db.collection('health_checks').find({}).toArray();
+		// Need to dedupe per service latest — reuse logic: group by service_id max timestamp
+		const latestBySid = new Map<string, { ts: number; status: string }>();
+		for (const raw of checks as Record<string, unknown>[]) {
+			const sid = raw.service_id as { toHexString?: () => string } | string;
+			const hex = sid && typeof sid === 'object' && 'toHexString' in (sid as Record<string, unknown>) ? (sid as { toHexString: () => string }).toHexString() : String(sid);
+			const ts = raw.timestamp instanceof Date ? (raw.timestamp as Date).getTime() : new Date(String(raw.timestamp)).getTime();
+			const existing = latestBySid.get(hex);
+			if (!existing || ts > existing.ts) latestBySid.set(hex, { ts, status: String(raw.status ?? 'unknown') });
+		}
+		const statuses = [...latestBySid.values()].map((v) => v.status);
+		if (statuses.length === 0) return 'unknown';
+		return statuses.every((s) => s === 'up') ? 'up' : 'down';
 	}
 
-	const result = await env.status_db
-		.prepare('SELECT h.status FROM services s JOIN health_checks h ON h.service_id = s.id WHERE s.name = ? ORDER BY h.id DESC LIMIT 1')
-		.bind(serviceName)
-		.first<{ status: string }>();
-	return result?.status || 'unknown';
+	const svc = await db.collection('services').findOne({ name: serviceName } as Record<string, unknown>);
+	if (!svc) return 'unknown';
+	const sid = (svc as Record<string, unknown>)._id as { toHexString?: () => string } | string;
+	// health_checks uses ObjectId for service_id
+	const filter: Record<string, unknown> = typeof sid === 'object' && sid !== null && 'toHexString' in (sid as Record<string, unknown>) ? { service_id: sid } : { service_id: sid };
+	const latest = await db
+		.collection('health_checks')
+		.find(filter as Record<string, unknown>)
+		.sort({ timestamp: -1 } as Record<string, number>)
+		.limit(1)
+		.toArray();
+	if (latest.length === 0) return 'unknown';
+	return String((latest[0] as Record<string, unknown>).status ?? 'unknown');
 }

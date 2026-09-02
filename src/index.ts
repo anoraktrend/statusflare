@@ -21,6 +21,7 @@ import { clearSessionCookie } from './services/session';
 import * as db from './services/db';
 import * as admin from './services/admin';
 import { notifyStatusChanges } from './utils/notifications';
+import { getDb } from './lib/mongo';
 import resvgWasm from '../public/resvg.wasm';
 
 async function handleBadge(env: Env, url: URL, path: string): Promise<Response | null> {
@@ -58,32 +59,63 @@ async function handleApiCheck(env: Env, ctx: ExecutionContext, path: string, req
 	if (!result.allowed) return createRateLimitResponse(result);
 	const statusChanges = await db.performAllHealthChecks(env);
 	if (statusChanges.length > 0) ctx.waitUntil(notifyStatusChanges(env, statusChanges));
-	return new Response('Health check triggered and saved to D1', { headers: { ...corsHeaders(), ...getRateLimitHeaders(result) } });
+	return new Response('Health check triggered and saved to MongoDB', { headers: { ...corsHeaders(), ...getRateLimitHeaders(result) } });
 }
 
 async function handleHealthEndpoint(env: Env, path: string): Promise<Response | null> {
 	if (path !== '/api/health') return null;
 
-	const { results: rows } = await env.status_db
-		.prepare(
-			`SELECT s.name, h.status, h.latency_ms, (SELECT COUNT(*) FROM incidents WHERE status = 'open') as incident_count
-      FROM services s LEFT JOIN health_checks h ON h.id = (SELECT MAX(id) FROM health_checks WHERE service_id = s.id)`,
-		)
-		.all<{ name: string; status: string | null; latency_ms: number | null; incident_count: number }>();
+	// Mongo: fetch services + latest health per service + open incident count via JS
+	const mdb = await getDb(env);
+	const services = await mdb.collection('services').find({}).toArray();
+	const healthChecks = await mdb.collection('health_checks').find({}).toArray();
+	const incidentCount = await mdb.collection('incidents').countDocuments({ status: 'open' } as Record<string, unknown>);
 
-	const incidentCount = rows[0]?.incident_count ?? 0;
+	// Compute latest health per service (max timestamp)
+	const latestBySid = new Map<string, { status: string | null; latency_ms: number | null }>();
+	for (const raw of healthChecks as Record<string, unknown>[]) {
+		const sid = raw.service_id as { toHexString?: () => string } | string;
+		const hex = sid && typeof sid === 'object' && 'toHexString' in (sid as Record<string, unknown>) ? (sid as { toHexString: () => string }).toHexString() : String(sid);
+		const ts = raw.timestamp instanceof Date ? (raw.timestamp as Date).getTime() : new Date(String(raw.timestamp)).getTime();
+		const existing = latestBySid.get(hex);
+		// We need to compare timestamps; store best per sid
+		if (!existing || ts > (existing as unknown as { _ts: number })._ts) {
+			(latestBySid as unknown as Map<string, unknown>).set(hex, { status: raw.status ?? null, latency_ms: raw.latency_ms ?? null, _ts: ts } as unknown);
+		}
+	}
+	// Strip internal _ts before use
+	const cleanedLatest = new Map<string, { status: string | null; latency_ms: number | null }>();
+	for (const [k, v] of latestBySid) {
+		const vv = v as unknown as { status: string | null; latency_ms: number | null; _ts: number };
+		cleanedLatest.set(k, { status: vv.status, latency_ms: vv.latency_ms });
+	}
+
+	const rows = (services as Record<string, unknown>[]).map((s) => {
+		const hex = (s._id as { toHexString?: () => string } | string) && typeof s._id === 'object' && (s._id as Record<string, unknown>).toHexString
+			? (s._id as { toHexString: () => string }).toHexString()
+			: String(s._id);
+		const latest = cleanedLatest.get(hex);
+		return {
+			name: String(s.name ?? ''),
+			status: latest?.status ?? null,
+			latency_ms: latest?.latency_ms ?? null,
+			incident_count: incidentCount,
+		};
+	});
+
+	const incidentCountVal = rows[0]?.incident_count ?? incidentCount ?? 0;
 	const checked = rows.map((r) => ({ name: r.name, status: r.status || 'unknown', latency_ms: r.latency_ms }));
 	const healthy = checked.filter((s) => s.status === 'up');
 	const degraded = checked.filter((s) => s.status !== 'up' && s.status !== 'unknown');
 	const unknown = checked.filter((s) => s.status === 'unknown');
 
-	const hasDown = incidentCount > 0 || degraded.length === checked.length;
+	const hasDown = incidentCountVal > 0 || (checked.length > 0 && degraded.length === checked.length);
 
 	return jsonWithStatus(
 		{
 			status: hasDown ? 'down' : degraded.length > 0 ? 'degraded' : 'up',
 			services: { total: checked.length, healthy: healthy.length, degraded: degraded.length, unknown: unknown.length },
-			incidents: incidentCount,
+			incidents: incidentCountVal,
 			checked,
 		},
 		hasDown ? 503 : 200,

@@ -1,5 +1,7 @@
 import { Env, Service, StatusChange } from '../types';
 import { err } from '../utils/helpers';
+import { getDb } from '../lib/mongo';
+import { SimpleObjectId, toObjectId } from '../lib/objectId';
 
 const SNIPPET_LIMIT = 1024;
 const SNIPPET_PRETTY_LIMIT = 1000;
@@ -8,18 +10,17 @@ const CHECK_TIMEOUT_MS = 10000;
 
 export interface CheckOutcome {
 	change: StatusChange | null;
-	insert: D1PreparedStatement;
+	/** Plain Mongo document to insert — caller batches via insertMany */
+	doc: Record<string, unknown> | null;
 }
 
-async function getCachedToken(db: D1Database, service: Service): Promise<{ token: string | null; error?: string }> {
+async function getCachedToken(env: Env, service: Service): Promise<{ token: string | null; error?: string }> {
 	if (!service.token_url || !service.token_body) return { token: null };
 	const cacheKey = `token_${service.id}`;
 
-	const cached = await db
-		.prepare('SELECT value FROM kv_cache WHERE key = ? AND expires_at > CURRENT_TIMESTAMP')
-		.bind(cacheKey)
-		.first<{ value: string }>();
-	if (cached) return { token: cached.value };
+	const db = await getDb(env);
+	const cached = await db.collection('kv_cache').findOne({ key: cacheKey, expires_at: { $gt: new Date() } } as unknown as Record<string, unknown>);
+	if (cached) return { token: String((cached as Record<string, unknown>).value) };
 
 	try {
 		const res = await fetch(service.token_url, {
@@ -35,10 +36,11 @@ async function getCachedToken(db: D1Database, service: Service): Promise<{ token
 		const token = service.token_response_path ? data[service.token_response_path] : data.token;
 
 		if (token) {
-			await db
-				.prepare('INSERT OR REPLACE INTO kv_cache (key, value, expires_at) VALUES (?, ?, datetime("now", "+12 hours"))')
-				.bind(cacheKey, token)
-				.run();
+			await db.collection('kv_cache').updateOne(
+				{ key: cacheKey } as Record<string, unknown>,
+				{ $set: { key: cacheKey, value: token, expires_at: new Date(Date.now() + 12 * 60 * 60 * 1000) } } as Record<string, unknown>,
+				{ upsert: true } as Record<string, unknown>,
+			);
 			return { token };
 		}
 		return { token: null, error: 'Token not found in response JSON' };
@@ -103,7 +105,6 @@ export async function captureResponseSnippet(response: Response): Promise<string
 }
 
 export async function performHealthCheck(env: Env, service: Service, previousStatus: string): Promise<CheckOutcome> {
-	const db = env.status_db;
 	const start = Date.now();
 	let status: 'up' | 'down' = 'down';
 	let statusCode: number | null = null;
@@ -116,7 +117,7 @@ export async function performHealthCheck(env: Env, service: Service, previousSta
 
 		let token: string | null = null;
 		if (service.token_url) {
-			const authResult = await getCachedToken(db, service);
+			const authResult = await getCachedToken(env, service);
 			token = authResult.token;
 			if (!token) {
 				throw new Error(authResult.error || 'Failed to acquire auth token');
@@ -153,9 +154,15 @@ export async function performHealthCheck(env: Env, service: Service, previousSta
 	}
 
 	const latency = Date.now() - start;
-	const insert = db
-		.prepare('INSERT INTO health_checks (service_id, status, status_code, response_snippet, latency_ms) VALUES (?, ?, ?, ?, ?)')
-		.bind(service.id, status, statusCode, responseSnippet || '', latency);
+	const oid = SimpleObjectId.isValid(String(service.id)) ? new SimpleObjectId(String(service.id)) : String(service.id);
+	const doc = {
+		service_id: oid,
+		status,
+		status_code: statusCode,
+		response_snippet: responseSnippet || '',
+		latency_ms: latency,
+		timestamp: new Date(),
+	};
 
 	let change: StatusChange | null = null;
 	if (status !== previousStatus && previousStatus !== 'unknown') {
@@ -169,5 +176,5 @@ export async function performHealthCheck(env: Env, service: Service, previousSta
 		};
 	}
 
-	return { change, insert };
+	return { change, doc };
 }

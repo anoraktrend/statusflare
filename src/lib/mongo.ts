@@ -470,11 +470,12 @@ function shouldUseMemory(env: Env): boolean {
  * Lazy connects on first use. Falls back to in-memory when Atlas unavailable or in tests.
  */
 export async function getDb(env: Env): Promise<MongoDb> {
-	const { uri, dbName } = resolveEnv(env);
-
 	if (shouldUseMemory(env)) {
+		const dbName = ((env as unknown as Record<string, unknown>).MONGODB_DB_NAME as string | undefined) ?? 'statusflare';
 		return getMemoryDb(dbName);
 	}
+
+	const { uri, dbName } = resolveEnv(env);
 
 	if (cachedClient && cachedUri === uri) {
 		try {

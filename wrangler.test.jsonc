@@ -7,7 +7,7 @@
 	"name": "status-worker",
 	"main": "src/index.ts",
 	"minify": true,
-	"compatibility_date": "2026-09-02",
+	"compatibility_date": "2026-08-22",
 	"compatibility_flags": [
 		"nodejs_compat",
 		"nodejs_als",

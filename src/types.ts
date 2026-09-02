@@ -11,13 +11,11 @@
  * `worker-configuration.d.ts` is generated and must not be hand-edited;
  * re-run `pnpm cf-typegen` after changing `wrangler.jsonc`.
  *
- * Widening literal types: Cloudflare.Env may contain string literal vars (e.g.
- * ADMIN_PASSWORD_HASH: "fb4e..." literal). If strict literal causes friction in
- * tests/mocks, widen via `Omit<Cloudflare.Env, 'ADMIN_PASSWORD_HASH'> &
- * { ADMIN_PASSWORD_HASH: string }`. Currently left as-is — run cf-typegen to
- * regenerate when wrangler.jsonc changes.
+ * MONGODB_URI / MONGODB_DB_NAME are secrets (wrangler secret put), not vars.
+ * D1 binding `status_db` is kept during transition for gradual migration.
  */
-export interface Env extends Omit<Cloudflare.Env, 'SESSION_SECRET'> {
+
+export interface Env extends Omit<Cloudflare.Env, 'SESSION_SECRET' | 'status_db' | 'MONGODB_URI' | 'MONGODB_DB_NAME'> {
 	// Secrets injected via `wrangler secret put` / `.dev.vars` — not in wrangler.jsonc vars.
 	// SESSION_SECRET is optional in type but runtime requires it — getSecret()/isAuthenticated()
 	// throw fail-loud if missing to prevent weak "undefined" secret forgery.
@@ -25,10 +23,14 @@ export interface Env extends Omit<Cloudflare.Env, 'SESSION_SECRET'> {
 	SESSION_SECRET?: string;
 	MAILGUN_API_KEY?: string;
 	DISCORD_WEBHOOK_URL?: string;
+	MONGODB_URI?: string;
+	MONGODB_DB_NAME?: string;
+	// Transitional D1 — optional because future deploys will remove it
+	status_db?: D1Database;
 }
 
 export interface Service {
-	id: number;
+	id: string;
 	name: string;
 	url: string;
 	health_endpoint: string;
@@ -42,8 +44,8 @@ export interface Service {
 }
 
 export interface HealthCheck {
-	id: number;
-	service_id: number;
+	id: string;
+	service_id: string;
 	status: 'up' | 'down' | 'unknown';
 	status_code: number | null;
 	response_snippet: string;
@@ -52,8 +54,8 @@ export interface HealthCheck {
 }
 
 export interface Incident {
-	id: number;
-	service_id: number | null;
+	id: string;
+	service_id: string | null;
 	service_name?: string;
 	title: string;
 	message: string;
