@@ -13,15 +13,19 @@ function sanitizeStr(value: string | null | undefined): string | null {
 	return String(value).replace(/[<>"'&]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;', '&': '&amp;' })[c] as string);
 }
 
+function isOidcConfigured(env: Env): boolean {
+	return !!(env.AUTHELIA_ISSUER && env.AUTHELIA_CLIENT_ID && env.AUTHELIA_CLIENT_SECRET);
+}
+
 export async function handlePasswordLogin(env: Env, formData: FormData) {
 	const password = formData.get('password') as string;
 	if (!env.ADMIN_PASSWORD_HASH) {
-		return html(renderAdminPage([], [], undefined, 'Admin password not configured', false, true));
+		return html(renderAdminPage([], [], undefined, 'Admin password not configured', false, isOidcConfigured(env)));
 	}
 
 	const enteredHash = await hashPassword(password);
 	if (enteredHash !== env.ADMIN_PASSWORD_HASH) {
-		return html(renderAdminPage([], [], undefined, 'Invalid Password', false, true));
+		return html(renderAdminPage([], [], undefined, 'Invalid Password', false, isOidcConfigured(env)));
 	}
 
 	const token = await createSessionJwt(env, 'admin', '1h');
@@ -32,6 +36,9 @@ export async function handlePasswordLogin(env: Env, formData: FormData) {
 }
 
 export async function handleOidcCallback(env: Env, code: string) {
+	if (!env.AUTHELIA_CLIENT_SECRET) {
+		return html(renderAdminPage([], [], undefined, 'Authelia client secret not configured', false, isOidcConfigured(env)));
+	}
 	try {
 		const tokenRes = await fetch(`${env.AUTHELIA_ISSUER}/api/oidc/token`, {
 			method: 'POST',
@@ -46,7 +53,7 @@ export async function handleOidcCallback(env: Env, code: string) {
 		});
 
 		if (!tokenRes.ok) {
-			return html(renderAdminPage([], [], undefined, `Token exchange failed: ${await tokenRes.text()}`, false, true));
+			return html(renderAdminPage([], [], undefined, `Token exchange failed: ${await tokenRes.text()}`, false, isOidcConfigured(env)));
 		}
 
 		const tokens = (await tokenRes.json()) as { id_token?: string; sub?: string };
@@ -65,7 +72,7 @@ export async function handleOidcCallback(env: Env, code: string) {
 			headers: { Location: '/admin', 'Set-Cookie': sessionCookie(token, 7200) },
 		});
 	} catch (e) {
-		return html(renderAdminPage([], [], undefined, `Callback error: ${err(e)}`, false, true));
+		return html(renderAdminPage([], [], undefined, `Callback error: ${err(e)}`, false, isOidcConfigured(env)));
 	}
 }
 
@@ -112,8 +119,12 @@ export async function handleCreateIncident(env: Env, formData: FormData) {
 	}
 
 	if (env.NOTIFICATION_EMAIL) {
-		await sendEmail(env, env.NOTIFICATION_EMAIL, `[StatusFlare] NEW INCIDENT: ${title}`,
-			`Incident: ${title}\nAffected Service: ${serviceName}\nMessage: ${message}\nTime: ${new Date().toISOString()}`);
+		await sendEmail(
+			env,
+			env.NOTIFICATION_EMAIL,
+			`[StatusFlare] NEW INCIDENT: ${title}`,
+			`Incident: ${title}\nAffected Service: ${serviceName}\nMessage: ${message}\nTime: ${new Date().toISOString()}`,
+		);
 	}
 	await sendDiscordNotification(
 		env,

@@ -6,6 +6,7 @@ export async function isAuthenticated(request: Request, env: Env) {
 	const sessionToken = cookies(request.headers.get('Cookie') || '')['session'];
 
 	if (!sessionToken) return false;
+	if (!env.SESSION_SECRET) throw new Error('SESSION_SECRET not configured');
 
 	try {
 		const secret = new TextEncoder().encode(env.SESSION_SECRET);

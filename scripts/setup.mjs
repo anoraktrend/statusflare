@@ -31,6 +31,8 @@ const LAYOUT = 'src/components/Layout.tsx';
 const DEV_VARS_EXAMPLE = '.dev.vars.example';
 const DEV_VARS = '.dev.vars';
 const HOST_RE = /^([a-z0-9]([a-z0-9-]*[a-z0-9])?\.)+[a-z0-9]([a-z0-9-]*[a-z0-9])?$/;
+// Single source for D1 identity — avoids hard-coded "status_db" repetition.
+const DB_NAME = 'status_db';
 
 const STATIC_VARS = [
 	'ADMIN_PASSWORD_HASH',
@@ -172,7 +174,7 @@ if (!yesMode) {
 		}
 		mailgunKey = await askSecretLive('Mailgun API key');
 		discordWebhook = await askSecretLive('Discord webhook URL');
-		createDb = await askYesNo('Create a new D1 database "status_db"? (requires wrangler login) [y/N] ', false);
+		createDb = await askYesNo(`Create a new D1 database "${DB_NAME}"? (requires wrangler login) [y/N] `, false);
 		runSetup = await askYesNo('Install deps, regenerate types, apply local migrations and seed? [Y/n] ', true);
 	} finally {
 		rl?.close();
@@ -260,7 +262,7 @@ if (missing.length > 0) notes.push(`still empty in ${DEV_VARS}: ${missing.join('
 
 if (createDb) {
 	try {
-		const out = execSync(`${wranglerCmd(pm)} d1 create status_db`, { encoding: 'utf-8' });
+		const out = execSync(`${wranglerCmd(pm)} d1 create ${DB_NAME}`, { encoding: 'utf-8' });
 		const id = out.match(/database_id:\s*"?([a-f0-9-]+)"?/i)?.[1];
 		if (id) {
 			const content = read(WRANGLER);
@@ -268,10 +270,10 @@ if (createDb) {
 			console.log(`created D1 database, wrote id to ${WRANGLER}`);
 			changed++;
 		} else {
-			notes.push('could not parse database_id from `wrangler d1 create`; set it manually in wrangler.jsonc');
+			notes.push(`could not parse database_id from \`wrangler d1 create ${DB_NAME}\`; set it manually in wrangler.jsonc`);
 		}
 	} catch (e) {
-		notes.push(`D1 creation failed (${e.message.trim().split('\n')[0]}); set database_id manually in wrangler.jsonc`);
+		notes.push(`D1 creation failed (${e.message.trim().split('\n')[0]}); set database_id manually in ${WRANGLER}`);
 	}
 }
 
@@ -280,8 +282,8 @@ if (runSetup) {
 	for (const cmd of [
 		`${pm} install`,
 		`${pm} run cf-typegen`,
-		`${w} d1 migrations apply status_db --local`,
-		`${w} d1 execute status_db --local --file=./seed.sql`,
+		`${w} d1 migrations apply ${DB_NAME} --local`,
+		`${w} d1 execute ${DB_NAME} --local --file=./seed.sql`,
 	]) {
 		console.log(`\n$ ${cmd}`);
 		execSync(cmd, { stdio: 'inherit' });

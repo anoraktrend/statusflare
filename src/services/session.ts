@@ -1,16 +1,13 @@
 import * as jose from 'jose';
 import { Env } from '../types';
 
-function getSecret(env: Env) {
+function getSecret(env: Env): Uint8Array {
+	if (!env.SESSION_SECRET) throw new Error('SESSION_SECRET not configured');
 	return new TextEncoder().encode(env.SESSION_SECRET);
 }
 
 export async function createSessionJwt(env: Env, sub: string, expiresIn = '2h'): Promise<string> {
-	return new jose.SignJWT({ sub })
-		.setProtectedHeader({ alg: 'HS256' })
-		.setIssuedAt()
-		.setExpirationTime(expiresIn)
-		.sign(getSecret(env));
+	return new jose.SignJWT({ sub }).setProtectedHeader({ alg: 'HS256' }).setIssuedAt().setExpirationTime(expiresIn).sign(getSecret(env));
 }
 
 export function sessionCookie(token: string, maxAge: number): string {

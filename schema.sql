@@ -33,6 +33,10 @@ CREATE TABLE IF NOT EXISTS health_checks (
   FOREIGN KEY (service_id) REFERENCES services(id)
 );
 CREATE INDEX IF NOT EXISTS idx_health_checks_service_id ON health_checks(service_id);
+-- Performance indexes for bounded time-window queries (mirrors migrations/0006_add_performance_indexes.sql)
+CREATE INDEX IF NOT EXISTS idx_health_checks_timestamp ON health_checks(timestamp);
+CREATE INDEX IF NOT EXISTS idx_health_checks_service_timestamp ON health_checks(service_id, timestamp);
+CREATE INDEX IF NOT EXISTS idx_health_checks_status_timestamp ON health_checks(status, timestamp);
 
 -- Table for manual incident management
 CREATE TABLE IF NOT EXISTS incidents (
@@ -52,3 +56,11 @@ CREATE TABLE IF NOT EXISTS users (
   notifications_enabled INTEGER DEFAULT 1,
   last_login DATETIME DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Table for D1-backed fixed-window rate limiting (mirrors migrations/0007_add_rate_limits.sql)
+CREATE TABLE IF NOT EXISTS rate_limits (
+  key TEXT PRIMARY KEY,
+  count INTEGER NOT NULL,
+  window_start INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_rate_limits_window_start ON rate_limits(window_start);

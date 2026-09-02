@@ -1,14 +1,23 @@
 import { renderStatusPage } from './pages/StatusPage';
 import { renderAdminPage } from './pages/AdminPage';
 import { renderServiceDetailPage } from './pages/ServiceDetailPage';
-import { Env, StatusChange } from './types';
+import { Env } from './types';
 import { isAuthenticated } from './utils/auth';
 import { getBadgeStatus } from './utils/badge';
 import { svgToPng } from './utils/image';
 import { slugify, resolveIconUrl, resolveServiceIconUrls } from './utils/icon';
 import { html, json, redirect, notFound, corsHeaders } from './utils/response';
 import { err, overallStatus } from './utils/helpers';
-import { createSessionJwt, sessionCookie, clearSessionCookie } from './services/session';
+import {
+	RATE_LIMITS,
+	checkRateLimit,
+	extractClientIp,
+	buildRateLimitKey,
+	createRateLimitResponse,
+	getRateLimitHeaders,
+	purgeExpiredRateLimits,
+} from './utils/rateLimit';
+import { clearSessionCookie } from './services/session';
 import * as db from './services/db';
 import * as admin from './services/admin';
 import { notifyStatusChanges } from './utils/notifications';
@@ -41,11 +50,15 @@ async function handleBadge(env: Env, url: URL, path: string): Promise<Response |
 	});
 }
 
-async function handleApiCheck(env: Env, ctx: ExecutionContext, path: string): Promise<Response | null> {
+async function handleApiCheck(env: Env, ctx: ExecutionContext, path: string, request: Request): Promise<Response | null> {
 	if (path !== '/api/check') return null;
+	const ip = extractClientIp(request);
+	const key = buildRateLimitKey('apiCheck', ip);
+	const result = await checkRateLimit(env, key, { ...RATE_LIMITS.apiCheck, failClosed: false });
+	if (!result.allowed) return createRateLimitResponse(result);
 	const statusChanges = await db.performAllHealthChecks(env);
 	if (statusChanges.length > 0) ctx.waitUntil(notifyStatusChanges(env, statusChanges));
-	return new Response('Health check triggered and saved to D1', { headers: corsHeaders() });
+	return new Response('Health check triggered and saved to D1', { headers: { ...corsHeaders(), ...getRateLimitHeaders(result) } });
 }
 
 async function handleHealthEndpoint(env: Env, path: string): Promise<Response | null> {
@@ -143,7 +156,13 @@ async function handleAdmin(env: Env, request: Request, url: URL, path: string): 
 	const adminPath = path.replace(/\/$/, '');
 	const oidcConfigured = !!(env.AUTHELIA_ISSUER && env.AUTHELIA_CLIENT_ID);
 
-	if (adminPath === '/admin/login' && request.method === 'POST') return admin.handlePasswordLogin(env, await request.formData());
+	if (adminPath === '/admin/login' && request.method === 'POST') {
+		const ip = extractClientIp(request);
+		const key = buildRateLimitKey('login', ip);
+		const result = await checkRateLimit(env, key, { ...RATE_LIMITS.login, failClosed: true });
+		if (!result.allowed) return createRateLimitResponse(result);
+		return admin.handlePasswordLogin(env, await request.formData());
+	}
 	if (adminPath === '/admin/login/oidc') {
 		return redirect(
 			`${env.AUTHELIA_ISSUER}/api/oidc/authorization?` +
@@ -159,6 +178,10 @@ async function handleAdmin(env: Env, request: Request, url: URL, path: string): 
 	if (adminPath === '/admin/logout')
 		return new Response(null, { status: 302, headers: { Location: '/admin', 'Set-Cookie': clearSessionCookie() } });
 	if (adminPath === '/admin/callback') {
+		const ip = extractClientIp(request);
+		const key = buildRateLimitKey('adminCallback', ip);
+		const result = await checkRateLimit(env, key, { ...RATE_LIMITS.adminCallback, failClosed: true });
+		if (!result.allowed) return createRateLimitResponse(result);
 		const code = url.searchParams.get('code');
 		if (!code) return new Response('Bad Request', { status: 400 });
 		return admin.handleOidcCallback(env, code);
@@ -168,6 +191,9 @@ async function handleAdmin(env: Env, request: Request, url: URL, path: string): 
 	if (!authPayload) return html(renderAdminPage([], [], undefined, undefined, false, oidcConfigured));
 
 	if (request.method === 'POST') {
+		const key = buildRateLimitKey('adminWrite', authPayload.sub);
+		const result = await checkRateLimit(env, key, { ...RATE_LIMITS.adminWrite, failClosed: true });
+		if (!result.allowed) return createRateLimitResponse(result);
 		const formData = await request.formData();
 		if (adminPath === '/admin/notifications/toggle') return admin.handleToggleNotifications(env, formData, authPayload.sub);
 		if (adminPath === '/admin/add') return admin.handleAddService(env, formData);
@@ -192,6 +218,7 @@ export default {
 		const now = new Date();
 		if (now.getUTCHours() === 3) {
 			await db.cleanupOldHealthChecks(env, 90).catch((e) => console.error('[cron] cleanup failed:', e));
+			await purgeExpiredRateLimits(env).catch((e) => console.error('[cron] purge rate limits failed:', e));
 		}
 
 		const statusChanges = await db.performAllHealthChecks(env);
@@ -204,7 +231,7 @@ export default {
 
 		return (
 			(await handleBadge(env, url, path)) ??
-			(await handleApiCheck(env, ctx, path)) ??
+			(await handleApiCheck(env, ctx, path, request)) ??
 			(await handleHealthEndpoint(env, path)) ??
 			(await handleServiceDetail(env, path)) ??
 			(await handleStatusPage(env, path)) ??
