@@ -17,7 +17,7 @@
  * { ADMIN_PASSWORD_HASH: string }`. Currently left as-is — run cf-typegen to
  * regenerate when wrangler.jsonc changes.
  */
-export interface Env extends Cloudflare.Env {
+export interface Env extends Omit<Cloudflare.Env, 'SESSION_SECRET'> {
 	// Secrets injected via `wrangler secret put` / `.dev.vars` — not in wrangler.jsonc vars.
 	// SESSION_SECRET is optional in type but runtime requires it — getSecret()/isAuthenticated()
 	// throw fail-loud if missing to prevent weak "undefined" secret forgery.
