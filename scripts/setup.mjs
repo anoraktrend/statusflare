@@ -30,8 +30,10 @@ const LAYOUT = 'src/components/Layout.tsx';
 const DEV_VARS_EXAMPLE = '.dev.vars.example';
 const DEV_VARS = '.dev.vars';
 const HOST_RE = /^([a-z0-9]([a-z0-9-]*[a-z0-9])?\.)+[a-z0-9]([a-z0-9-]*[a-z0-9])?$/;
+// Direct mongodb:// URI is required on Workers (workerd lacks dns.resolveSrv for SRV). SRV fails with EBADQUERY.
+// Placeholder — replace with your Atlas direct URI (see atlas-credentials.env MONGODB_URI_DIRECT).
 const MONGODB_DEFAULT_URI =
-	'mongodb+srv://trenteartist_db_user:jjZ6kSI9fFesYkV2@statusdb.k4c1r06.mongodb.net/statusflare?retryWrites=true&w=majority&appName=statusflare';
+	'mongodb://user:pass@ac-6rizoan-shard-00-00.k4c1r06.mongodb.net:27017,ac-6rizoan-shard-00-01.k4c1r06.mongodb.net:27017,ac-6rizoan-shard-00-02.k4c1r06.mongodb.net:27017/statusflare?tls=true&replicaSet=atlas-d54jsd-shard-0&authSource=admin&retryWrites=true&w=majority&appName=statusflare';
 
 const STATIC_VARS = [
 	'ADMIN_PASSWORD_HASH',
@@ -268,8 +270,61 @@ writeFileSync(DEV_VARS, devVars);
 console.log(`${wasNew ? 'created' : 'updated'} ${DEV_VARS} (secrets filled in)`);
 changed++;
 
+// Ensure .dev.vars.example exists (cleanup.mjs creates it; setup.mjs regenerates if deleted)
+if (!existsSync(DEV_VARS_EXAMPLE)) {
+	const exampleContent = `# Copy to .dev.vars and fill in your own values.
+# Static vars (mirror wrangler.jsonc "vars"):
+ADMIN_PASSWORD_HASH=REPLACE_ME
+AUTHELIA_ISSUER=https://auth.example.com
+AUTHELIA_CLIENT_ID=statusflare
+OIDC_REDIRECT_URI=https://status.example.com/admin/callback
+MAILGUN_DOMAIN=mail.example.com
+MAILGUN_FROM=StatusFlare <alerts@mail.example.com>
+NOTIFICATION_EMAIL=alerts@example.com
+
+# Secrets (kept out of wrangler.jsonc; set with \`wrangler secret put\` too):
+AUTHELIA_CLIENT_SECRET=
+DISCORD_WEBHOOK_URL=
+MAILGUN_API_KEY=
+SESSION_SECRET=
+MONGODB_URI=mongodb://user:pass@ac-6rizoan-shard-00-00.k4c1r06.mongodb.net:27017,ac-6rizoan-shard-00-01.k4c1r06.mongodb.net:27017,ac-6rizoan-shard-00-02.k4c1r06.mongodb.net:27017/statusflare?tls=true&replicaSet=atlas-d54jsd-shard-0&authSource=admin&retryWrites=true&w=majority&appName=statusflare
+MONGODB_DB_NAME=statusflare
+`;
+	writeFileSync(DEV_VARS_EXAMPLE, exampleContent);
+	console.log(`created ${DEV_VARS_EXAMPLE}`);
+}
+
 const missing = STATIC_VARS.concat(SECRET_VARS).filter((name) => !getVar(name));
 if (missing.length > 0) notes.push(`still empty in ${DEV_VARS}: ${missing.join(', ')}`);
+
+// Validate MONGODB_URI is direct (Workers lacks dns.resolveSrv) and attempt seed/ping if possible
+const finalUri = getVar('MONGODB_URI');
+if (finalUri && finalUri.startsWith('mongodb+srv://')) {
+	notes.push(
+		'MONGODB_URI uses mongodb+srv:// — Workers will fail (EBADQUERY, no dns.resolveSrv). Use direct mongodb:// with replicaSet shards (see .dev.vars or atlas-credentials.env).',
+	);
+} else if (finalUri && finalUri.startsWith('mongodb://')) {
+	notes.push('MONGODB_URI is direct mongodb:// — correct for Workers.');
+}
+
+async function seedIfNeeded() {
+	const uriToUse = finalUri || mongodbUri || MONGODB_DEFAULT_URI;
+	if (!uriToUse || uriToUse.includes('user:pass')) {
+		notes.push('Skipping Atlas seed: MONGODB_URI is placeholder. Set real URI in .dev.vars then run: node scripts/seed.mongo.mjs');
+		return;
+	}
+	try {
+		const { seedMongoIfEmpty } = await import('./seed.mongo.mjs');
+		const result = await seedMongoIfEmpty({ force: false });
+		if (result.seeded) notes.push(`Seeded ${result.inserted} services into ${result.count} total.`);
+		else if (result.reason === 'already-seeded') notes.push(`Atlas already seeded (${result.count} services) — no action.`);
+		else if (result.reason) notes.push(`Seed skipped: ${result.reason}. Run node scripts/seed.mongo.mjs manually.`);
+	} catch (e) {
+		notes.push(`Atlas seed failed: ${e instanceof Error ? e.message : String(e)} — run node scripts/seed.mongo.mjs manually.`);
+	}
+}
+// Always attempt seed when DB empty, even without --yes (fresh Atlas has 0 services => silent monitoring)
+await seedIfNeeded();
 
 if (runSetup) {
 	const w = wranglerCmd(pm);
@@ -281,16 +336,19 @@ if (runSetup) {
 			notes.push(`${cmd} failed: ${e.message.split('\n')[0]}`);
 		}
 	}
-	notes.push('MongoDB Atlas is primary — no D1 migrations needed. Ensure Atlas indexes via getDb() ensureIndexes on first request.');
-	notes.push('To seed initial data, insert via MongoDB Compass or mongosh using schema.sql as reference.');
+	notes.push(
+		'MongoDB Atlas is primary — no D1 migrations needed. Indexes ensured via getDb() ensureIndexes on first request (includes kv_cache.key unique, rate_limits.key unique).',
+	);
+	notes.push('Atlas seeding: node scripts/seed.mongo.mjs (auto-runs when services empty; uses seed.sql 9 services).');
 }
 
 console.log(`\nDone. ${changed} file(s) changed.`);
 for (const n of notes) console.log(`note: ${n}`);
 console.log('\nFor production (secrets are never stored in wrangler.jsonc):\n');
 for (const name of SECRET_VARS) console.log(`  ${wranglerCmd(pm)} secret put ${name}`);
-console.log('  # MONGODB_URI must be the full Atlas URI with /statusflare path:');
+console.log('  # MONGODB_URI must be the DIRECT Atlas URI (mongodb://, not srv — Workers lacks dns.resolveSrv):');
 console.log(
-	'  # pnpm wrangler secret put MONGODB_URI  # paste: mongodb+srv://trenteartist_db_user:***@statusdb.k4c1r06.mongodb.net/statusflare?retryWrites=true&w=majority&appName=statusflare',
+	'  # pnpm wrangler secret put MONGODB_URI  # paste: mongodb://user:***@ac-6rizoan-shard-00-00.k4c1r06.mongodb.net:27017,ac-6rizoan-shard-00-01.k4c1r06.mongodb.net:27017,ac-6rizoan-shard-00-02.k4c1r06.mongodb.net:27017/statusflare?tls=true&replicaSet=atlas-d54jsd-shard-0&authSource=admin&retryWrites=true&w=majority&appName=statusflare',
 );
+console.log('  # Then seed Atlas if empty: node scripts/seed.mongo.mjs  (or mongosh / Compass with seed.sql)');
 console.log('\nThen: pnpm deploy');

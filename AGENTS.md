@@ -27,7 +27,7 @@ This file provides essential technical context for AI agents working on this rep
 - **Environment:** Cloudflare Workers (Serverless)
 - **Rendering:** Preact (Server-Side Rendering) with `preact-render-to-string`
 - **Styling:** Tailwind CSS v4 with Catppuccin theme
-- **Database:** Cloudflare D1 (SQL)
+- **Database:** MongoDB Atlas (via `mongodb` driver) with in-memory fallback for tests
 
 ## 📂 Architecture & Directory Structure
 
@@ -39,14 +39,15 @@ This file provides essential technical context for AI agents working on this rep
   - `src/services/`: Core logic (e.g., health checks in `checker.ts`)
   - `src/utils/`: Shared utilities (authentication, notifications, image processing)
   - `src/components/`: Low-level UI components
-- **Pattern:** Functional and declarative. Avoid stateful classes; prefer pure functions and Cloudflare D1/KV for state.
+- **Pattern:** Functional and declarative. Avoid stateful classes; prefer pure functions and MongoDB Atlas for state (indexes via ensureIndexes, seeding via seed.mongo.mjs).
 
-## 🗄 Database Management (Cloudflare D1)
+## 🗄 Database Management (MongoDB Atlas)
 
-- **Database Name:** `status_db`
-- **Apply Migrations (Local):** `pnpm wrangler d1 migrations apply status_db --local`
-- **Create Migration:** `pnpm wrangler d1 migrations create status_db <name>`
-- **Seed Data (Local):** `pnpm wrangler d1 execute status_db --local --file=./seed.sql`
+- **Database Name:** `statusflare` (configurable via `MONGODB_DB_NAME`)
+- **URI:** Direct `mongodb://` with replicaSet (Workers lacks `dns.resolveSrv`, so `mongodb+srv://` fails) — see `.dev.vars` and `atlas-credentials.env`
+- **Indexes:** Auto-created on first `getDb()` via `ensureIndexes()` (includes `kv_cache.key` unique, `rate_limits.key` unique, `kv_cache.expires_at` TTL)
+- **Seed Data:** `pnpm seed` or `node scripts/seed.mongo.mjs` (inserts 9 services from `seed.sql` if `services` empty)
+- **Legacy D1:** Migrations in `migrations/` and `seed.sql` kept for reference; `wrangler d1` no longer primary
 
 ## 🔐 Secrets & Environment Variables
 

@@ -44,7 +44,7 @@ export function renderServiceDetailPage(service: Service, history: HealthCheck[]
 							</p>
 						</div>
 						<div
-							className={`px-8 py-4 rounded-2xl text-xl font-bold uppercase tracking-widest flex items-center gap-3 relative z-10 ${latest.status === 'up' ? 'bg-ctp-green/10 text-ctp-green border-2 border-ctp-green/20' : 'bg-ctp-red/10 text-ctp-red border-2 border-ctp-red/20'}`}
+							className={`px-8 py-4 rounded-2xl text-xl font-bold uppercase tracking-widest flex items-center gap-3 relative z-10 ${latest.status === 'up' ? 'bg-ctp-green/10 text-ctp-green border-2 border-ctp-green/20' : latest.status === 'down' ? 'bg-ctp-red/10 text-ctp-red border-2 border-ctp-red/20' : 'bg-ctp-yellow/10 text-ctp-yellow border-2 border-ctp-yellow/20'}`}
 						>
 							<SvgDot status={latest.status} size={24} />
 							{latest.status?.toUpperCase()}
@@ -129,7 +129,7 @@ export function renderServiceDetailPage(service: Service, history: HealthCheck[]
 											</td>
 											<td className="p-6">
 												<span
-													className={`px-3 py-1 rounded-lg text-xs font-bold uppercase tracking-widest flex items-center gap-2 w-fit ${h.status === 'up' ? 'bg-ctp-green/10 text-ctp-green border border-ctp-green/20' : 'bg-ctp-red/10 text-ctp-red border border-ctp-red/20'}`}
+													className={`px-3 py-1 rounded-lg text-xs font-bold uppercase tracking-widest flex items-center gap-2 w-fit ${h.status === 'up' ? 'bg-ctp-green/10 text-ctp-green border border-ctp-green/20' : h.status === 'down' ? 'bg-ctp-red/10 text-ctp-red border border-ctp-red/20' : 'bg-ctp-yellow/10 text-ctp-yellow border border-ctp-yellow/20'}`}
 												>
 													<SvgDot status={h.status} size={10} />
 													{h.status.toUpperCase()}

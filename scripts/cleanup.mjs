@@ -49,7 +49,8 @@ AUTHELIA_CLIENT_SECRET=
 DISCORD_WEBHOOK_URL=
 MAILGUN_API_KEY=
 SESSION_SECRET=
-MONGODB_URI=mongodb+srv://user:pass@cluster.mongodb.net/statusflare?retryWrites=true&w=majority
+# Direct mongodb:// required on Workers (SRV fails: no dns.resolveSrv). Get from atlas-credentials.env MONGODB_URI_DIRECT
+MONGODB_URI=mongodb://user:pass@ac-6rizoan-shard-00-00.k4c1r06.mongodb.net:27017,ac-6rizoan-shard-00-01.k4c1r06.mongodb.net:27017,ac-6rizoan-shard-00-02.k4c1r06.mongodb.net:27017/statusflare?tls=true&replicaSet=atlas-d54jsd-shard-0&authSource=admin&retryWrites=true&w=majority&appName=statusflare
 MONGODB_DB_NAME=statusflare
 `;
 

@@ -1,0 +1,17 @@
+# Copy to .dev.vars and fill in your own values.
+# Static vars (mirror wrangler.jsonc "vars"):
+ADMIN_PASSWORD_HASH=REPLACE_ME
+AUTHELIA_ISSUER=https://auth.example.com
+AUTHELIA_CLIENT_ID=statusflare
+OIDC_REDIRECT_URI=https://status.example.com/admin/callback
+MAILGUN_DOMAIN=mail.example.com
+MAILGUN_FROM=StatusFlare <alerts@mail.example.com>
+NOTIFICATION_EMAIL=alerts@example.com
+
+# Secrets (kept out of wrangler.jsonc; set with `wrangler secret put` too):
+AUTHELIA_CLIENT_SECRET=
+DISCORD_WEBHOOK_URL=
+MAILGUN_API_KEY=
+SESSION_SECRET=
+MONGODB_URI=mongodb://user:pass@ac-6rizoan-shard-00-00.k4c1r06.mongodb.net:27017,ac-6rizoan-shard-00-01.k4c1r06.mongodb.net:27017,ac-6rizoan-shard-00-02.k4c1r06.mongodb.net:27017/statusflare?tls=true&replicaSet=atlas-d54jsd-shard-0&authSource=admin&retryWrites=true&w=majority&appName=statusflare
+MONGODB_DB_NAME=statusflare

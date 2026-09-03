@@ -37,7 +37,13 @@ export function overallStatus(
 			hex: '#f38ba8',
 		};
 	}
-	if (!allUp && checked.length > 0) {
+	if (services.length === 0) {
+		return { status: 'unknown', text: 'No Services Monitored', color: 'ctp-yellow', hex: '#f9e2af' };
+	}
+	if (checked.length === 0) {
+		return { status: 'unknown', text: 'No Status Data', color: 'ctp-yellow', hex: '#f9e2af' };
+	}
+	if (!allUp) {
 		return { status: 'degraded', text: 'Partial System Outage', color: 'ctp-yellow', hex: '#f9e2af' };
 	}
 	return { status: 'up', text: 'All Systems Operational', color: 'ctp-green', hex: '#a6e3a1' };

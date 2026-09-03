@@ -8,9 +8,18 @@ import * as db from './db';
 import { sendEmail, sendDiscordNotification } from '../utils/notifications';
 import { decodeJwt } from 'jose';
 
-function sanitizeStr(value: string | null | undefined): string | null {
+// Storage must keep raw values — HTML escaping is for display only (AdminPage.tsx JSX escapes).
+// Previous sanitizeStr corrupted health_endpoint query strings (?a=1&b=2 -> &amp;) and
+// headers_json quotes. Store trimmed raw strings instead.
+function toNullableTrim(value: unknown): string | null {
 	if (value === null || value === undefined) return null;
-	return String(value).replace(/[<>"'&]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;', '&': '&amp;' })[c] as string);
+	const raw = String(value).trim();
+	return raw === '' ? null : raw;
+}
+
+function toTrimmedString(value: unknown): string {
+	if (value === null || value === undefined) return '';
+	return String(value).trim();
 }
 
 function isOidcConfigured(env: Env): boolean {
@@ -84,16 +93,16 @@ export async function handleToggleNotifications(env: Env, formData: FormData, em
 
 export async function handleAddService(env: Env, formData: FormData) {
 	const data = {
-		name: sanitizeStr(formData.get('name') as string) || '',
-		url: sanitizeStr(formData.get('url') as string) || '',
-		health_endpoint: sanitizeStr(formData.get('health_endpoint') as string) || '',
-		method: sanitizeStr(formData.get('method') as string) || 'GET',
-		headers_json: sanitizeStr(formData.get('headers_json') as string),
-		body: sanitizeStr(formData.get('body') as string),
-		token_url: sanitizeStr(formData.get('token_url') as string),
-		token_body: sanitizeStr(formData.get('token_body') as string),
-		token_response_path: sanitizeStr(formData.get('token_response_path') as string),
-		icon: sanitizeStr(formData.get('icon') as string),
+		name: toTrimmedString(formData.get('name')),
+		url: toTrimmedString(formData.get('url')),
+		health_endpoint: toTrimmedString(formData.get('health_endpoint')),
+		method: toTrimmedString(formData.get('method')) || 'GET',
+		headers_json: toNullableTrim(formData.get('headers_json')),
+		body: toNullableTrim(formData.get('body')),
+		token_url: toNullableTrim(formData.get('token_url')),
+		token_body: toNullableTrim(formData.get('token_body')),
+		token_response_path: toNullableTrim(formData.get('token_response_path')),
+		icon: toNullableTrim(formData.get('icon')),
 	};
 	await db.addService(env, data);
 	return redirect('/admin');
@@ -106,9 +115,9 @@ export async function handleRemoveService(env: Env, formData: FormData) {
 }
 
 export async function handleCreateIncident(env: Env, formData: FormData) {
-	const title = sanitizeStr(formData.get('title') as string) || '';
-	const message = sanitizeStr(formData.get('message') as string) || '';
-	const service_id = (formData.get('service_id') as string) || null;
+	const title = toTrimmedString(formData.get('title'));
+	const message = toTrimmedString(formData.get('message'));
+	const service_id = toNullableTrim(formData.get('service_id'));
 
 	await db.createIncident(env, title, message, service_id);
 

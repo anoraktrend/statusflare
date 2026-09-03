@@ -34,6 +34,8 @@ function serviceIdFilter(serviceId: string | number): Record<string, unknown> {
 function docToService(doc: Record<string, unknown>): Service {
 	const oid = doc._id as SimpleObjectId | string;
 	const hex = oid instanceof SimpleObjectId ? oid.toHexString() : String(oid);
+	// health_endpoint is required via Mongo validator (src/lib/mongo.ts ensureIndexes + seed.mongo.mjs).
+	// Fallback '' would collapse to '/' in checker (baseUrl + '/'), so missing field indicates seeding bug.
 	return {
 		id: hex,
 		name: String(doc.name ?? ''),
@@ -142,16 +144,29 @@ export async function getServicesWithRecentHistory(
 	const { results: services } = await getAllServices(env);
 	if (services.length === 0) return [];
 
-	const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
-	// Single query for recent window, then slice per service in JS (keeps in-memory fallback simple)
-	const sids = services.map((s) => toSid(s.id)).filter(Boolean) as SimpleObjectId[];
-	const allRecent =
-		sids.length > 0
-			? await healthCol
-					.find({ service_id: { $in: sids }, timestamp: { $gte: since } } as unknown as Record<string, unknown>)
-					.sort({ timestamp: -1 } as Record<string, number>)
-					.toArray()
-			: [];
+	// Build both ObjectId and string id lists to support legacy D1 string ids (e.g. "1") after Mongo migration
+	const oidSids = services.map((s) => toSid(s.id)).filter(Boolean) as SimpleObjectId[];
+	const strSids = services.filter((s) => !toSid(s.id)).map((s) => String(s.id));
+	let allRecent: Record<string, unknown>[] = [];
+	if (oidSids.length > 0 && strSids.length > 0) {
+		allRecent = (await healthCol
+			.find({ $or: [{ service_id: { $in: oidSids } }, { service_id: { $in: strSids } }] } as unknown as Record<
+				string,
+				unknown
+			>)
+			.sort({ timestamp: -1 } as Record<string, number>)
+			.toArray()) as Record<string, unknown>[];
+	} else if (oidSids.length > 0) {
+		allRecent = (await healthCol
+			.find({ service_id: { $in: oidSids } } as unknown as Record<string, unknown>)
+			.sort({ timestamp: -1 } as Record<string, number>)
+			.toArray()) as Record<string, unknown>[];
+	} else if (strSids.length > 0) {
+		allRecent = (await healthCol
+			.find({ service_id: { $in: strSids } } as unknown as Record<string, unknown>)
+			.sort({ timestamp: -1 } as Record<string, number>)
+			.toArray()) as Record<string, unknown>[];
+	}
 
 	const historyByService = new Map<string, HealthCheck[]>();
 	for (const raw of allRecent as Record<string, unknown>[]) {

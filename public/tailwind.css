@@ -197,6 +197,9 @@
   }
 }
 @layer utilities {
+  .collapse {
+    visibility: collapse;
+  }
   .invisible {
     visibility: hidden;
   }
@@ -596,6 +599,12 @@
       border-color: color-mix(in oklab, var(--catppuccin-color-surface0) 50%, transparent);
     }
   }
+  .border-ctp-yellow\/20 {
+    border-color: var(--catppuccin-color-yellow);
+    @supports (color: color-mix(in lab, red, red)) {
+      border-color: color-mix(in oklab, var(--catppuccin-color-yellow) 20%, transparent);
+    }
+  }
   .bg-ctp-base {
     background-color: var(--catppuccin-color-base);
   }
@@ -670,6 +679,12 @@
   }
   .bg-ctp-yellow {
     background-color: var(--catppuccin-color-yellow);
+  }
+  .bg-ctp-yellow\/10 {
+    background-color: var(--catppuccin-color-yellow);
+    @supports (color: color-mix(in lab, red, red)) {
+      background-color: color-mix(in oklab, var(--catppuccin-color-yellow) 10%, transparent);
+    }
   }
   .p-2 {
     padding: calc(var(--spacing) * 2);

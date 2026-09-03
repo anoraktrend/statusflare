@@ -14,6 +14,9 @@
 		"deploy": "pnpm run build && wrangler deploy --latest",
 		"dev": "pnpm run build:css && wrangler dev",
 		"setup": "node scripts/setup.mjs",
+		"seed": "node scripts/seed.mongo.mjs",
+		"seed:force": "node scripts/seed.mongo.mjs --force",
+		"seed:repair": "node scripts/seed.mongo.mjs --repair",
 		"test": "vitest"
 	},
 	"devDependencies": {

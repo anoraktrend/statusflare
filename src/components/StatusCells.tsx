@@ -18,7 +18,9 @@ export function StatusCells({
 					style={{ width: size, height: size * 1.25 }}
 					key={h.timestamp}
 					title={`${fmtTime(h.timestamp)} - ${h.latency_ms}ms`}
-				/>
+				>
+					<span className="sr-only">{h.status.toUpperCase()}</span>
+				</div>
 			))}
 		</div>
 	);

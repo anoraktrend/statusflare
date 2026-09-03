@@ -242,41 +242,70 @@ async function handleAdmin(env: Env, request: Request, url: URL, path: string): 
 		if (adminPath === '/admin/incidents/resolve') return admin.handleResolveIncident(env, formData);
 	}
 
-	const [services, activeIncidents, user] = await Promise.all([
-		db.getAllServices(env),
-		db.getActiveIncidents(env),
-		db.getUserByEmail(env, authPayload.sub),
-	]);
-
-	return html(renderAdminPage(services.results, activeIncidents.results, user ?? undefined, undefined, true, oidcConfigured));
+	// Fail-fast data load: avoid Workers hung detection (30s) if getDb/ensureIndexes hangs
+	try {
+		const adminData = await Promise.race([
+			Promise.all([db.getAllServices(env), db.getActiveIncidents(env), db.getUserByEmail(env, authPayload.sub)]),
+			new Promise<never>((_, reject) => setTimeout(() => reject(new Error('admin data timeout after 5000ms')), 5_000)),
+		]);
+		const [services, activeIncidents, user] = adminData as [
+			Awaited<ReturnType<typeof db.getAllServices>>,
+			Awaited<ReturnType<typeof db.getActiveIncidents>>,
+			Awaited<ReturnType<typeof db.getUserByEmail>>,
+		];
+		return html(renderAdminPage(services.results, activeIncidents.results, user ?? undefined, undefined, true, oidcConfigured));
+	} catch (e) {
+		console.error('[admin] failed to load dashboard data:', e instanceof Error ? e.message : String(e));
+		return new Response(
+			'<h1>Admin temporarily unavailable</h1><p>Database connection failed — please retry. If MONGODB_URI uses mongodb+srv://, switch to direct mongodb://.</p>',
+			{
+				status: 503,
+				headers: { 'Content-Type': 'text/html', 'Retry-After': '10' },
+			},
+		);
+	}
 }
 
 export default {
 	async scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext) {
-		// Prune history BEFORE running checks so the database never stays full
-		// and silently blocks the INSERTs below (which would halt all monitoring).
-		const now = new Date();
-		if (now.getUTCHours() === 3) {
-			await db.cleanupOldHealthChecks(env, 90).catch((e) => console.error('[cron] cleanup failed:', e));
-			await purgeExpiredRateLimits(env).catch((e) => console.error('[cron] purge rate limits failed:', e));
-		}
+		try {
+			// Startup provisioning: getDb() lazily calls ensureIndexes() on first use, which
+			// creates unique indexes (kv_cache.key, rate_limits.key) and TTL for kv_cache.
+			// Fresh Atlas DBs are seeded via `node scripts/seed.mongo.mjs` (or setup.mjs auto-seed);
+			// performAllHealthChecks early-returns on 0 services, so seeding is required for monitoring.
+			// Prune history BEFORE running checks so the database never stays full
+			// and silently blocks the INSERTs below (which would halt all monitoring).
+			const now = new Date();
+			if (now.getUTCHours() === 3) {
+				await db.cleanupOldHealthChecks(env, 90).catch((e) => console.error('[cron] cleanup failed:', e));
+				await purgeExpiredRateLimits(env).catch((e) => console.error('[cron] purge rate limits failed:', e));
+			}
 
-		const statusChanges = await db.performAllHealthChecks(env);
-		if (statusChanges.length > 0) ctx.waitUntil(notifyStatusChanges(env, statusChanges));
+			const statusChanges = await db.performAllHealthChecks(env);
+			if (statusChanges.length > 0) ctx.waitUntil(notifyStatusChanges(env, statusChanges));
+		} catch (e) {
+			console.error('[cron] scheduled failed:', e instanceof Error ? e.message : String(e));
+		}
 	},
 
 	async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
-		const url = new URL(request.url);
-		const path = url.pathname;
+		try {
+			// First fetch triggers getDb() -> ensureIndexes() (unique key indexes + TTL) and validates Atlas connectivity via ping in seed script.
+			const url = new URL(request.url);
+			const path = url.pathname;
 
-		return (
-			(await handleBadge(env, url, path)) ??
-			(await handleApiCheck(env, ctx, path, request)) ??
-			(await handleHealthEndpoint(env, path)) ??
-			(await handleServiceDetail(env, path)) ??
-			(await handleStatusPage(env, path)) ??
-			(await handleAdmin(env, request, url, path)) ??
-			notFound()
-		);
+			return (
+				(await handleBadge(env, url, path)) ??
+				(await handleApiCheck(env, ctx, path, request)) ??
+				(await handleHealthEndpoint(env, path)) ??
+				(await handleServiceDetail(env, path)) ??
+				(await handleStatusPage(env, path)) ??
+				(await handleAdmin(env, request, url, path)) ??
+				notFound()
+			);
+		} catch (e) {
+			console.error('[fetch] unhandled error:', e instanceof Error ? e.message : String(e));
+			return new Response('Internal Server Error — please retry', { status: 500, headers: { 'Retry-After': '5' } });
+		}
 	},
 } satisfies ExportedHandler<Env>;

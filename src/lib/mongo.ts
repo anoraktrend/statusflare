@@ -11,7 +11,24 @@ type MongoClientType = any;
 
 let cachedClient: MongoClientType | null = null;
 let cachedUri: string | null = null;
+let cachedDbName: string | null = null;
 let indexesEnsured = false;
+
+// ---------------------------------------------------------------------------
+// Timeout helper — prevents Workers hung detection (30s) when Atlas or
+// createCollection hangs (e.g. SRV dns.resolveSrv missing, validator hang).
+// ---------------------------------------------------------------------------
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+	let timer: ReturnType<typeof setTimeout> | undefined;
+	const timeout = new Promise<never>((_, reject) => {
+		timer = setTimeout(() => reject(new Error(`${label} timeout after ${ms}ms`)), ms);
+	});
+	return Promise.race([promise, timeout]).finally(() => clearTimeout(timer)) as Promise<T>;
+}
+
+function isSrvUri(uri: string): boolean {
+	return uri.startsWith('mongodb+srv://');
+}
 
 // ---------------------------------------------------------------------------
 // In-memory fallback — used when MONGODB_URI is unset or when running in
@@ -477,26 +494,39 @@ export async function getDb(env: Env): Promise<MongoDb> {
 
 	const { uri, dbName } = resolveEnv(env);
 
-	if (cachedClient && cachedUri === uri) {
+	if (isSrvUri(uri)) {
+		console.warn(
+			'[mongo] WARN: MONGODB_URI uses mongodb+srv:// — Workers lacks dns.resolveSrv (EBADQUERY). Use direct mongodb:// with replicaSet shards.',
+		);
+	}
+
+	if (cachedClient && cachedUri === uri && cachedDbName === dbName) {
 		try {
-			await cachedClient.connect();
+			await withTimeout(cachedClient.connect(), 8_000, 'MongoClient.connect (cached)');
 			const db = cachedClient.db(dbName);
-			if (!indexesEnsured) await ensureIndexes(db).catch(() => {});
+			if (!indexesEnsured) {
+				await withTimeout(ensureIndexes(db), 5_000, 'ensureIndexes (cached)').catch((e) =>
+					console.error('[mongo] ensureIndexes failed:', e),
+				);
+			}
 			return db;
-		} catch {
+		} catch (e) {
+			console.error('[mongo] cached connect failed:', e instanceof Error ? e.message : String(e));
 			try {
 				await cachedClient.close();
 			} catch {}
 			cachedClient = null;
+			cachedDbName = null;
 			indexesEnsured = false;
 		}
 	}
 
-	if (cachedClient && cachedUri !== uri) {
+	if (cachedClient && (cachedUri !== uri || cachedDbName !== dbName)) {
 		try {
 			await cachedClient.close();
 		} catch {}
 		cachedClient = null;
+		cachedDbName = null;
 		indexesEnsured = false;
 	}
 
@@ -512,46 +542,97 @@ export async function getDb(env: Env): Promise<MongoDb> {
 			maxIdleTimeMS: 30_000,
 		});
 		cachedUri = uri;
-		await cachedClient.connect();
+		cachedDbName = dbName;
+		await withTimeout(cachedClient.connect(), 8_000, 'MongoClient.connect');
 		const db = cachedClient.db(dbName);
-		await ensureIndexes(db).catch((e) => console.error('[mongo] ensureIndexes failed:', e));
+		await withTimeout(ensureIndexes(db), 5_000, 'ensureIndexes').catch((e) => console.error('[mongo] ensureIndexes failed:', e));
 		return db;
 	} catch (e) {
 		console.error('[mongo] Atlas connect failed — falling back to in-memory for this request:', e instanceof Error ? e.message : String(e));
+		try {
+			if (cachedClient) await cachedClient.close();
+		} catch {}
+		cachedClient = null;
+		cachedUri = null;
+		cachedDbName = null;
 		return getMemoryDb(dbName);
 	}
 }
 
 /**
  * Idempotent index creation. Safe to call on every getDb().
+ * Includes unique key indexes for kv_cache and rate_limits (D1 PRIMARY KEY parity)
+ * and TTL for kv_cache expires_at. status_changes indexes are reserved for future use.
  */
 export async function ensureIndexes(db: MongoDb): Promise<void> {
 	if (indexesEnsured) return;
-	// In-memory db has no-op createIndex
+	// In-memory db has no-op createIndex — still mark as ensured after attempt
 	if (db.collection && typeof db.collection('services').createIndex === 'function') {
+		// Optionally create collections with JSON schema validators (no-op if exists or on in-memory mock).
+		// Wrapped in try/catch + timeout to avoid hanging Workers (validator hang, Atlas privilege).
+		if (typeof db.createCollection === 'function') {
+			try {
+				await withTimeout(
+					db.createCollection('services', {
+						validator: {
+							$jsonSchema: {
+								bsonType: 'object',
+								required: ['name', 'url', 'health_endpoint'],
+								properties: {
+									name: { bsonType: 'string' },
+									url: { bsonType: 'string' },
+									health_endpoint: { bsonType: 'string' },
+								},
+							},
+						},
+					}),
+					5_000,
+					'createCollection services',
+				);
+			} catch {}
+			for (const col of ['health_checks', 'incidents', 'kv_cache', 'rate_limits', 'users', 'status_changes']) {
+				try {
+					await withTimeout(db.createCollection(col), 3_000, `createCollection ${col}`);
+				} catch {}
+			}
+		}
 		try {
-			await Promise.all([
-				db.collection('services').createIndex({ name: 1 }, { unique: true, background: true }),
-				db.collection('health_checks').createIndex({ service_id: 1 }, { background: true }),
-				db.collection('health_checks').createIndex({ timestamp: 1 }, { background: true }),
-				db.collection('health_checks').createIndex({ service_id: 1, timestamp: 1 }, { background: true }),
-				db.collection('health_checks').createIndex({ status: 1, timestamp: 1 }, { background: true }),
-				db.collection('incidents').createIndex({ service_id: 1 }, { background: true }),
-				db.collection('incidents').createIndex({ status: 1 }, { background: true }),
-				db.collection('rate_limits').createIndex({ window_start: 1 }, { background: true }),
-				db.collection('kv_cache').createIndex({ expires_at: 1 }, { expireAfterSeconds: 0, background: true }),
-				db.collection('users').createIndex({ email: 1 }, { unique: true, background: true }),
-				db.collection('status_changes').createIndex({ service_id: 1, timestamp: 1 }, { background: true }),
-				db.collection('status_changes').createIndex({ timestamp: 1 }, { background: true }),
-			]);
+			await withTimeout(
+				Promise.all([
+					db.collection('services').createIndex({ name: 1 }, { unique: true, background: true }),
+					db.collection('health_checks').createIndex({ service_id: 1 }, { background: true }),
+					db.collection('health_checks').createIndex({ timestamp: 1 }, { background: true }),
+					db.collection('health_checks').createIndex({ service_id: 1, timestamp: 1 }, { background: true }),
+					db.collection('health_checks').createIndex({ status: 1, timestamp: 1 }, { background: true }),
+					db.collection('incidents').createIndex({ service_id: 1 }, { background: true }),
+					db.collection('incidents').createIndex({ status: 1 }, { background: true }),
+					db.collection('rate_limits').createIndex({ key: 1 }, { unique: true, background: true }),
+					db.collection('rate_limits').createIndex({ window_start: 1 }, { background: true }),
+					db.collection('kv_cache').createIndex({ key: 1 }, { unique: true, background: true }),
+					db.collection('kv_cache').createIndex({ expires_at: 1 }, { expireAfterSeconds: 0, background: true }),
+					db.collection('users').createIndex({ email: 1 }, { unique: true, background: true }),
+					// status_changes is reserved — keep indexes for forward compat, no harm if unused
+					db.collection('status_changes').createIndex({ service_id: 1, timestamp: 1 }, { background: true }),
+					db.collection('status_changes').createIndex({ timestamp: 1 }, { background: true }),
+				]),
+				5_000,
+				'createIndex batch',
+			);
 			indexesEnsured = true;
 		} catch (e) {
 			const msg = e instanceof Error ? e.message : String(e);
-			if (msg.includes('already exists') || msg.includes('IndexOptionsConflict') || msg.includes('Index with same name')) {
+			if (
+				msg.includes('already exists') ||
+				msg.includes('IndexOptionsConflict') ||
+				msg.includes('Index with same name') ||
+				msg.includes('timeout')
+			) {
+				if (msg.includes('timeout')) console.error('[mongo] ensureIndexes timeout — marking ensured to avoid hang:', msg);
 				indexesEnsured = true;
 				return;
 			}
-			throw e;
+			console.error('[mongo] ensureIndexes failed (marking ensured to avoid hang):', msg);
+			indexesEnsured = true;
 		}
 	} else {
 		indexesEnsured = true;
@@ -562,6 +643,7 @@ export async function ensureIndexes(db: MongoDb): Promise<void> {
 export function _resetCacheForTests(): void {
 	cachedClient = null;
 	cachedUri = null;
+	cachedDbName = null;
 	indexesEnsured = false;
 	for (const store of memoryStores.values()) store.clear();
 	memoryStores.clear();

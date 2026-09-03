@@ -150,13 +150,13 @@ export function renderStatusPage(
 										</p>
 									</div>
 									<div
-										className={`px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-widest flex items-center gap-2 ${s.latest.status === 'up' ? 'bg-ctp-green/10 text-ctp-green border border-ctp-green/20' : 'bg-ctp-red/10 text-ctp-red border border-ctp-red/20'}`}
+										className={`px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-widest flex items-center gap-2 ${s.latest.status === 'up' ? 'bg-ctp-green/10 text-ctp-green border border-ctp-green/20' : s.latest.status === 'down' ? 'bg-ctp-red/10 text-ctp-red border border-ctp-red/20' : 'bg-ctp-yellow/10 text-ctp-yellow border border-ctp-yellow/20'}`}
 									>
 										<SvgDot status={s.latest.status} size={12} />
 										{s.latest.status?.toUpperCase()}
 									</div>
 								</div>
-								{s.history.length > 0 && <StatusCells history={s.history} className="px-6 pb-6" />}
+								<StatusCells history={s.history} className="px-6 pb-6" />
 								<div className="px-6 py-3 bg-ctp-crust/50 border-t border-ctp-surface0/30 flex justify-end">
 									<span className="text-ctp-mauve text-[0.7rem] uppercase font-bold tracking-widest flex items-center gap-1 group-hover:gap-2 transition-all">
 										View Analytics <ExternalLink size={10} />
