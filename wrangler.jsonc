@@ -22,16 +22,7 @@
 	"triggers": {
 		"crons": ["* * * * *"],
 	},
-	// D1 binding kept during Atlas transition — remove after full migration verified
-	// To reconnect D1, uncomment below; otherwise MongoDB Atlas is primary via MONGODB_URI secret.
-	"d1_databases": [
-		{
-			"binding": "status_db",
-			"database_name": "status_db",
-			"database_id": "44be4f71-163b-4d31-bb03-6847874802c4",
-		},
-	],
-	"vars": {
+		"vars": {
 		"ADMIN_PASSWORD_HASH": "fb4e7d739966c50fbac8579e38cc42dc3d0b9b17c352fd5e87726e397022543f",
 		"AUTHELIA_ISSUER": "https://auth.helltop.net",
 		"AUTHELIA_CLIENT_ID": "statusflare",
