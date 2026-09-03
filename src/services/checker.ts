@@ -19,7 +19,9 @@ async function getCachedToken(env: Env, service: Service): Promise<{ token: stri
 	const cacheKey = `token_${service.id}`;
 
 	const db = await getDb(env);
-	const cached = await db.collection('kv_cache').findOne({ key: cacheKey, expires_at: { $gt: new Date() } } as unknown as Record<string, unknown>);
+	const cached = await db
+		.collection('kv_cache')
+		.findOne({ key: cacheKey, expires_at: { $gt: new Date() } } as unknown as Record<string, unknown>);
 	if (cached) return { token: String((cached as Record<string, unknown>).value) };
 
 	try {
@@ -36,11 +38,13 @@ async function getCachedToken(env: Env, service: Service): Promise<{ token: stri
 		const token = service.token_response_path ? data[service.token_response_path] : data.token;
 
 		if (token) {
-			await db.collection('kv_cache').updateOne(
-				{ key: cacheKey } as Record<string, unknown>,
-				{ $set: { key: cacheKey, value: token, expires_at: new Date(Date.now() + 12 * 60 * 60 * 1000) } } as Record<string, unknown>,
-				{ upsert: true } as Record<string, unknown>,
-			);
+			await db
+				.collection('kv_cache')
+				.updateOne(
+					{ key: cacheKey } as Record<string, unknown>,
+					{ $set: { key: cacheKey, value: token, expires_at: new Date(Date.now() + 12 * 60 * 60 * 1000) } } as Record<string, unknown>,
+					{ upsert: true } as Record<string, unknown>,
+				);
 			return { token };
 		}
 		return { token: null, error: 'Token not found in response JSON' };

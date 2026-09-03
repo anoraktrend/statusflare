@@ -8,25 +8,19 @@
 	"main": "src/index.ts",
 	"minify": true,
 	"compatibility_date": "2026-09-02",
-	"compatibility_flags": [
-		"nodejs_compat",
-		"nodejs_als",
-		"global_fetch_strictly_public"
-	],
+	"compatibility_flags": ["nodejs_compat", "nodejs_als", "global_fetch_strictly_public"],
 	"assets": {
 		"directory": "./public",
-		"binding": "ASSETS"
+		"binding": "ASSETS",
 	},
 	"routes": [
 		{
 			"pattern": "status.helltop.net",
-			"custom_domain": true
-		}
+			"custom_domain": true,
+		},
 	],
 	"triggers": {
-		"crons": [
-			"* * * * *"
-		]
+		"crons": ["* * * * *"],
 	},
 	// D1 binding kept during Atlas transition — remove after full migration verified
 	// To reconnect D1, uncomment below; otherwise MongoDB Atlas is primary via MONGODB_URI secret.
@@ -34,8 +28,8 @@
 		{
 			"binding": "status_db",
 			"database_name": "status_db",
-			"database_id": "44be4f71-163b-4d31-bb03-6847874802c4"
-		}
+			"database_id": "44be4f71-163b-4d31-bb03-6847874802c4",
+		},
 	],
 	"vars": {
 		"ADMIN_PASSWORD_HASH": "fb4e7d739966c50fbac8579e38cc42dc3d0b9b17c352fd5e87726e397022543f",
@@ -44,18 +38,16 @@
 		"OIDC_REDIRECT_URI": "https://status.helltop.net/admin/callback",
 		"MAILGUN_DOMAIN": "mail.helltop.net",
 		"MAILGUN_FROM": "StatusFlare <alerts@mail.helltop.net>",
-		"NOTIFICATION_EMAIL": "lucybrown@vivaldi.net"
+		"NOTIFICATION_EMAIL": "lucybrown@vivaldi.net",
 	},
 	"observability": {
-		"enabled": true
+		"enabled": true,
 	},
 	"rules": [
 		{
 			"type": "CompiledWasm",
-			"globs": [
-				"**/*.wasm"
-			],
-			"fallthrough": true
-		}
-	]
+			"globs": ["**/*.wasm"],
+			"fallthrough": true,
+		},
+	],
 }

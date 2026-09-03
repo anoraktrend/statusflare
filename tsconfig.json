@@ -1,36 +1,23 @@
 {
-  "compilerOptions": {
-    "target": "ESNext",
-    "module": "ESNext",
-    "lib": ["ESNext"],
-    "moduleResolution": "Bundler",
-    "rootDir": ".",
-    "outDir": "build",
-    "jsx": "react-jsx",
-    "jsxImportSource": "preact",
-    "resolveJsonModule": true,
-    "allowJs": true,
-    "checkJs": false,
-    "noEmit": true,
-    "isolatedModules": true,
-    "allowImportingTsExtensions": true,
-    "strict": true,
-    "skipLibCheck": true,
-    "types": [
-      "@cloudflare/workers-types",
-      "@cloudflare/vitest-pool-workers"
-    ]
-  },
-  "include": [
-    "src/**/*.ts",
-    "src/**/*.tsx",
-    "test/**/*.ts",
-    "test/**/*.spec.ts",
-    "worker-configuration.d.ts",
-    "test/env.d.ts"
-  ],
-  "exclude": [
-    "node_modules",
-    "build"
-  ]
+	"compilerOptions": {
+		"target": "ESNext",
+		"module": "ESNext",
+		"lib": ["ESNext"],
+		"moduleResolution": "Bundler",
+		"rootDir": ".",
+		"outDir": "build",
+		"jsx": "react-jsx",
+		"jsxImportSource": "preact",
+		"resolveJsonModule": true,
+		"allowJs": true,
+		"checkJs": false,
+		"noEmit": true,
+		"isolatedModules": true,
+		"allowImportingTsExtensions": true,
+		"strict": true,
+		"skipLibCheck": true,
+		"types": ["@cloudflare/workers-types", "@cloudflare/vitest-pool-workers"]
+	},
+	"include": ["src/**/*.ts", "src/**/*.tsx", "test/**/*.ts", "test/**/*.spec.ts", "worker-configuration.d.ts", "test/env.d.ts"],
+	"exclude": ["node_modules", "build"]
 }

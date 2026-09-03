@@ -33,7 +33,10 @@ export async function getBadgeStatus(env: Env, serviceName: string): Promise<str
 		const latestBySid = new Map<string, { ts: number; status: string }>();
 		for (const raw of checks as Record<string, unknown>[]) {
 			const sid = raw.service_id as { toHexString?: () => string } | string;
-			const hex = sid && typeof sid === 'object' && 'toHexString' in (sid as Record<string, unknown>) ? (sid as { toHexString: () => string }).toHexString() : String(sid);
+			const hex =
+				sid && typeof sid === 'object' && 'toHexString' in (sid as Record<string, unknown>)
+					? (sid as { toHexString: () => string }).toHexString()
+					: String(sid);
 			const ts = raw.timestamp instanceof Date ? (raw.timestamp as Date).getTime() : new Date(String(raw.timestamp)).getTime();
 			const existing = latestBySid.get(hex);
 			if (!existing || ts > existing.ts) latestBySid.set(hex, { ts, status: String(raw.status ?? 'unknown') });
@@ -47,7 +50,10 @@ export async function getBadgeStatus(env: Env, serviceName: string): Promise<str
 	if (!svc) return 'unknown';
 	const sid = (svc as Record<string, unknown>)._id as { toHexString?: () => string } | string;
 	// health_checks uses ObjectId for service_id
-	const filter: Record<string, unknown> = typeof sid === 'object' && sid !== null && 'toHexString' in (sid as Record<string, unknown>) ? { service_id: sid } : { service_id: sid };
+	const filter: Record<string, unknown> =
+		typeof sid === 'object' && sid !== null && 'toHexString' in (sid as Record<string, unknown>)
+			? { service_id: sid }
+			: { service_id: sid };
 	const latest = await db
 		.collection('health_checks')
 		.find(filter as Record<string, unknown>)

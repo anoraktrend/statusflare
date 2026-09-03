@@ -75,12 +75,19 @@ async function handleHealthEndpoint(env: Env, path: string): Promise<Response | 
 	const latestBySid = new Map<string, { status: string | null; latency_ms: number | null }>();
 	for (const raw of healthChecks as Record<string, unknown>[]) {
 		const sid = raw.service_id as { toHexString?: () => string } | string;
-		const hex = sid && typeof sid === 'object' && 'toHexString' in (sid as Record<string, unknown>) ? (sid as { toHexString: () => string }).toHexString() : String(sid);
+		const hex =
+			sid && typeof sid === 'object' && 'toHexString' in (sid as Record<string, unknown>)
+				? (sid as { toHexString: () => string }).toHexString()
+				: String(sid);
 		const ts = raw.timestamp instanceof Date ? (raw.timestamp as Date).getTime() : new Date(String(raw.timestamp)).getTime();
 		const existing = latestBySid.get(hex);
 		// We need to compare timestamps; store best per sid
 		if (!existing || ts > (existing as unknown as { _ts: number })._ts) {
-			(latestBySid as unknown as Map<string, unknown>).set(hex, { status: raw.status ?? null, latency_ms: raw.latency_ms ?? null, _ts: ts } as unknown);
+			(latestBySid as unknown as Map<string, unknown>).set(hex, {
+				status: raw.status ?? null,
+				latency_ms: raw.latency_ms ?? null,
+				_ts: ts,
+			} as unknown);
 		}
 	}
 	// Strip internal _ts before use
@@ -91,9 +98,10 @@ async function handleHealthEndpoint(env: Env, path: string): Promise<Response | 
 	}
 
 	const rows = (services as Record<string, unknown>[]).map((s) => {
-		const hex = (s._id as { toHexString?: () => string } | string) && typeof s._id === 'object' && (s._id as Record<string, unknown>).toHexString
-			? (s._id as { toHexString: () => string }).toHexString()
-			: String(s._id);
+		const hex =
+			(s._id as { toHexString?: () => string } | string) && typeof s._id === 'object' && (s._id as Record<string, unknown>).toHexString
+				? (s._id as { toHexString: () => string }).toHexString()
+				: String(s._id);
 		const latest = cleanedLatest.get(hex);
 		return {
 			name: String(s.name ?? ''),

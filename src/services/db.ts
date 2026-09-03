@@ -132,9 +132,9 @@ export async function getServiceIncidents(env: Env, serviceId: string | number):
 	return { results: docs.map((d: Record<string, unknown>) => docToIncident(d)) };
 }
 
-export async function getServicesWithRecentHistory(env: Env): Promise<
-	Array<Service & { history: HealthCheck[]; latest: HealthCheck | { status: string; timestamp: string } }>
-> {
+export async function getServicesWithRecentHistory(
+	env: Env,
+): Promise<Array<Service & { history: HealthCheck[]; latest: HealthCheck | { status: string; timestamp: string } }>> {
 	const db = await getDb(env);
 	const servicesCol = db.collection('services');
 	const healthCol = db.collection('health_checks');
@@ -179,7 +179,11 @@ export async function getHistoricalOutages(env: Env): Promise<{
 	const healthCol = db.collection('health_checks');
 	const servicesCol = db.collection('services');
 
-	const rawOutages = await healthCol.find({ status: 'down' } as Record<string, unknown>).sort({ timestamp: -1 } as Record<string, number>).limit(10).toArray();
+	const rawOutages = await healthCol
+		.find({ status: 'down' } as Record<string, unknown>)
+		.sort({ timestamp: -1 } as Record<string, number>)
+		.limit(10)
+		.toArray();
 
 	if (rawOutages.length === 0) return { results: [] };
 
@@ -191,7 +195,9 @@ export async function getHistoricalOutages(env: Env): Promise<{
 	if (oidNeeded.length > 0) orFilters.push({ _id: { $in: oidNeeded } } as unknown as Record<string, unknown>);
 	// strNeeded fallback — services stored with ObjectId, so str ids won't match; keep for safety
 	if (strNeeded.length > 0) {
-		const converted = strNeeded.map((s) => (SimpleObjectId.isValid(s) ? new SimpleObjectId(s) : s)).filter((v) => v instanceof SimpleObjectId) as SimpleObjectId[];
+		const converted = strNeeded
+			.map((s) => (SimpleObjectId.isValid(s) ? new SimpleObjectId(s) : s))
+			.filter((v) => v instanceof SimpleObjectId) as SimpleObjectId[];
 		if (converted.length > 0) orFilters.push({ _id: { $in: converted } } as unknown as Record<string, unknown>);
 	}
 
@@ -222,12 +228,17 @@ export async function getActiveIncidents(env: Env): Promise<{ results: Incident[
 	const incidentsCol = db.collection('incidents');
 	const servicesCol = db.collection('services');
 
-	const raw = await incidentsCol.find({ status: 'open' } as Record<string, unknown>).sort({ created_at: -1 } as Record<string, number>).toArray();
+	const raw = await incidentsCol
+		.find({ status: 'open' } as Record<string, unknown>)
+		.sort({ created_at: -1 } as Record<string, number>)
+		.toArray();
 
 	if (raw.length === 0) return { results: [] };
 
 	const sids = [...new Set((raw as Record<string, unknown>[]).map((r) => r.service_id).filter(Boolean))] as unknown[];
-	const oidSids = (sids as (SimpleObjectId | string)[]).filter((v) => v instanceof SimpleObjectId || (typeof v === 'string' && SimpleObjectId.isValid(v as string)));
+	const oidSids = (sids as (SimpleObjectId | string)[]).filter(
+		(v) => v instanceof SimpleObjectId || (typeof v === 'string' && SimpleObjectId.isValid(v as string)),
+	);
 	const lookupIds = oidSids.map((v) => (v instanceof SimpleObjectId ? v : new SimpleObjectId(v as string))) as SimpleObjectId[];
 
 	let idToName = new Map<string, string>();
@@ -380,17 +391,21 @@ export async function getUserByEmail(env: Env, email: string): Promise<User | nu
 export async function registerUser(env: Env, email: string): Promise<void> {
 	if (!email) throw new Error('registerUser: email required');
 	const db = await getDb(env);
-	await db.collection('users').updateOne(
-		{ email } as Record<string, unknown>,
-		{ $set: { last_login: new Date() }, $setOnInsert: { email, notifications_enabled: 1 } } as Record<string, unknown>,
-		{ upsert: true } as Record<string, unknown>,
-	);
+	await db
+		.collection('users')
+		.updateOne(
+			{ email } as Record<string, unknown>,
+			{ $set: { last_login: new Date() }, $setOnInsert: { email, notifications_enabled: 1 } } as Record<string, unknown>,
+			{ upsert: true } as Record<string, unknown>,
+		);
 }
 
 export async function updateNotificationPref(env: Env, email: string, enabled: number): Promise<void> {
 	if (!email) throw new Error('updateNotificationPref: email required');
 	const db = await getDb(env);
-	await db.collection('users').updateOne({ email } as Record<string, unknown>, { $set: { notifications_enabled: enabled } } as Record<string, unknown>);
+	await db
+		.collection('users')
+		.updateOne({ email } as Record<string, unknown>, { $set: { notifications_enabled: enabled } } as Record<string, unknown>);
 }
 
 export async function addService(env: Env, data: Record<string, string | null>): Promise<void> {
@@ -439,7 +454,10 @@ export async function createIncident(env: Env, title: string, message: string, s
 	} as unknown as Record<string, unknown>);
 }
 
-export async function getIncidentWithService(env: Env, id: string | number): Promise<{ title: string; service_name: string | null } | null> {
+export async function getIncidentWithService(
+	env: Env,
+	id: string | number,
+): Promise<{ title: string; service_name: string | null } | null> {
 	const db = await getDb(env);
 	const inc = await db.collection('incidents').findOne(idFilter(id) as Record<string, unknown>);
 	if (!inc) return null;
@@ -460,9 +478,12 @@ export async function getIncidentWithService(env: Env, id: string | number): Pro
 
 export async function resolveIncident(env: Env, id: string | number): Promise<void> {
 	const db = await getDb(env);
-	await db.collection('incidents').updateOne(idFilter(id) as Record<string, unknown>, {
-		$set: { status: 'resolved', resolved_at: new Date() },
-	} as Record<string, unknown>);
+	await db.collection('incidents').updateOne(
+		idFilter(id) as Record<string, unknown>,
+		{
+			$set: { status: 'resolved', resolved_at: new Date() },
+		} as Record<string, unknown>,
+	);
 }
 
 export async function getServiceName(env: Env, id: string | number): Promise<{ name: string } | null> {

@@ -135,9 +135,10 @@ export async function checkRateLimit(env: Env, key: string, opts: RateLimitOptio
 				// For real driver errors or unsupported pipeline, fall through to JS fallback
 			}
 			// JS fallback: read-then-write (serial safe for tests, still correct for low concurrency)
-			const existing = (await col.findOne({ key } as unknown as Record<string, unknown>)) as unknown as
-				| { count: number; window_start: number }
-				| null;
+			const existing = (await col.findOne({ key } as unknown as Record<string, unknown>)) as unknown as {
+				count: number;
+				window_start: number;
+			} | null;
 			if (!existing) {
 				await col.updateOne(
 					{ key } as unknown as Record<string, unknown>,
@@ -146,7 +147,10 @@ export async function checkRateLimit(env: Env, key: string, opts: RateLimitOptio
 				);
 				row = { count: 1, window_start: nowSec };
 			} else if (existing.window_start + opts.windowSec <= nowSec) {
-				await col.updateOne({ key } as unknown as Record<string, unknown>, { $set: { count: 1, window_start: nowSec } } as unknown as Record<string, unknown>);
+				await col.updateOne(
+					{ key } as unknown as Record<string, unknown>,
+					{ $set: { count: 1, window_start: nowSec } } as unknown as Record<string, unknown>,
+				);
 				row = { count: 1, window_start: nowSec };
 			} else {
 				await col.updateOne(

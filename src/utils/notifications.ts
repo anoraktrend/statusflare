@@ -66,7 +66,10 @@ export async function notifyStatusChanges(env: Env, changes: StatusChange[]) {
 	if (env.MAILGUN_API_KEY) {
 		// Get all users who have notifications enabled
 		const db = await getDb(env);
-		const users = await db.collection('users').find({ notifications_enabled: 1 } as Record<string, unknown>).toArray();
+		const users = await db
+			.collection('users')
+			.find({ notifications_enabled: 1 } as Record<string, unknown>)
+			.toArray();
 		const recipientEmails = new Set((users as Record<string, unknown>[]).map((u) => String(u.email)));
 
 		// Always include the default notification email if configured
