@@ -540,6 +540,9 @@ export async function ensureIndexes(db: MongoDb): Promise<void> {
 				db.collection('incidents').createIndex({ status: 1 }, { background: true }),
 				db.collection('rate_limits').createIndex({ window_start: 1 }, { background: true }),
 				db.collection('kv_cache').createIndex({ expires_at: 1 }, { expireAfterSeconds: 0, background: true }),
+				db.collection('users').createIndex({ email: 1 }, { unique: true, background: true }),
+				db.collection('status_changes').createIndex({ service_id: 1, timestamp: 1 }, { background: true }),
+				db.collection('status_changes').createIndex({ timestamp: 1 }, { background: true }),
 			]);
 			indexesEnsured = true;
 		} catch (e) {
