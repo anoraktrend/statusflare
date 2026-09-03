@@ -31,7 +31,7 @@ const DEV_VARS_EXAMPLE = '.dev.vars.example';
 const DEV_VARS = '.dev.vars';
 const HOST_RE = /^([a-z0-9]([a-z0-9-]*[a-z0-9])?\.)+[a-z0-9]([a-z0-9-]*[a-z0-9])?$/;
 const MONGODB_DEFAULT_URI =
-	'mongodb+srv://trenteartist_db_user:jjZ6kSI9fFesYkV2@statusdb.50ornhx.mongodb.net/statusflare?retryWrites=true&w=majority&appName=statusflare';
+	'mongodb+srv://trenteartist_db_user:jjZ6kSI9fFesYkV2@statusdb.k4c1r06.mongodb.net/statusflare?retryWrites=true&w=majority&appName=statusflare';
 
 const STATIC_VARS = [
 	'ADMIN_PASSWORD_HASH',
@@ -291,6 +291,6 @@ console.log('\nFor production (secrets are never stored in wrangler.jsonc):\n');
 for (const name of SECRET_VARS) console.log(`  ${wranglerCmd(pm)} secret put ${name}`);
 console.log('  # MONGODB_URI must be the full Atlas URI with /statusflare path:');
 console.log(
-	'  # pnpm wrangler secret put MONGODB_URI  # paste: mongodb+srv://trenteartist_db_user:***@statusdb.50ornhx.mongodb.net/statusflare?retryWrites=true&w=majority&appName=statusflare',
+	'  # pnpm wrangler secret put MONGODB_URI  # paste: mongodb+srv://trenteartist_db_user:***@statusdb.k4c1r06.mongodb.net/statusflare?retryWrites=true&w=majority&appName=statusflare',
 );
 console.log('\nThen: pnpm deploy');
