@@ -1,43 +1,42 @@
 {
-  "name": "status-worker",
-  "version": "0.0.0",
-  "private": true,
-  "packageManager": "pnpm@10.12.1",
-  "scripts": {
-    "build": "pnpm run build:css && pnpm run cf-typegen",
-    "build:css": "tailwindcss -i src/input.css -o public/tailwind.css",
-    "cf-typegen": "wrangler types",
-    "check": "tsc --noEmit",
-    "clean": "gts clean",
-    "clean:repo": "node scripts/cleanup.mjs",
-    "deploy": "pnpm run build && wrangler deploy",
-    "dev": "pnpm run build:css && wrangler dev",
-    "fix": "gts fix",
-    "lint": "gts lint",
-    "setup": "node scripts/setup.mjs",
-    "test": "vitest"
-  },
-  "devDependencies": {
-    "@catppuccin/tailwindcss": "^1.0.0",
-    "@cloudflare/vitest-pool-workers": "^0.22.0",
-    "@cloudflare/workers-types": "^5.20260901.1",
-    "@tailwindcss/cli": "^4.2.2",
-    "@types/node": "^25.5.0",
-    "@typescript-eslint/parser": "8.69.0",
-    "@typescript-eslint/typescript-estree": "8.69.0",
-    "gts": "^7.0.0",
-    "tailwindcss": "^4.2.2",
-    "typescript": "^6.0.2",
-    "typescript-eslint": "8.69.0",
-    "vitest": "^4.1.1",
-    "wrangler": "^4.127.1"
-  },
-  "dependencies": {
-    "@resvg/resvg-wasm": "^2.6.2",
-    "jose": "^6.2.2",
-    "lucide-preact": "^1.6.0",
-    "mongodb": "^6.18.0",
-    "preact": "^10.29.0",
-    "preact-render-to-string": "^6.6.6"
-  }
+	"name": "status-worker",
+	"version": "0.0.0",
+	"private": true,
+	"packageManager": "pnpm@10.12.1",
+	"scripts": {
+		"build": "pnpm run build:css && pnpm run cf-typegen",
+		"build:css": "tailwindcss -i src/input.css -o public/tailwind.css",
+		"cf-typegen": "wrangler types",
+		"check": "tsc --noEmit",
+		"format": "prettier --check",
+		"fix": "prettier --write",
+		"clean:repo": "node scripts/cleanup.mjs",
+		"deploy": "pnpm run build && wrangler deploy",
+		"dev": "pnpm run build:css && wrangler dev",
+		"setup": "node scripts/setup.mjs",
+		"test": "vitest"
+	},
+	"devDependencies": {
+		"@catppuccin/tailwindcss": "^1.0.0",
+		"@cloudflare/vitest-pool-workers": "^0.22.0",
+		"@cloudflare/workers-types": "^5.20260901.1",
+		"@tailwindcss/cli": "^4.2.2",
+		"@types/node": "^25.5.0",
+		"@typescript-eslint/parser": "8.69.0",
+		"@typescript-eslint/typescript-estree": "8.69.0",
+		"prettier": "^3.4.2",
+		"tailwindcss": "^4.2.2",
+		"typescript": "^6.0.2",
+		"typescript-eslint": "8.69.0",
+		"vitest": "^4.1.1",
+		"wrangler": "^4.128.0"
+	},
+	"dependencies": {
+		"@resvg/resvg-wasm": "^2.6.2",
+		"jose": "^6.2.2",
+		"lucide-preact": "^1.6.0",
+		"mongodb": "^6.18.0",
+		"preact": "^10.29.0",
+		"preact-render-to-string": "^6.6.6"
+	}
 }

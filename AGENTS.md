@@ -12,7 +12,8 @@ This file provides essential technical context for AI agents working on this rep
   - `pnpm cf-typegen` (Generates TypeScript types for Cloudflare bindings)
 - **Quality:**
   - `pnpm check` (Type-check via `tsc --noEmit`)
-  - `pnpm lint` / `pnpm fix` (Lint and auto-fix via `gts`)
+  - `pnpm format` (Check formatting via Prettier)
+  - `pnpm fix` (Auto-fix formatting via Prettier)
 - **Running (Development):**
   - `pnpm dev` (Runs CSS build and Wrangler development server)
 - **Deployment:**
