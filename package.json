@@ -11,7 +11,7 @@
 		"format": "prettier --check",
 		"fix": "prettier --write",
 		"clean:repo": "node scripts/cleanup.mjs",
-		"deploy": "pnpm run build && wrangler deploy",
+		"deploy": "pnpm run build && wrangler deploy --latest",
 		"dev": "pnpm run build:css && wrangler dev",
 		"setup": "node scripts/setup.mjs",
 		"test": "vitest"
