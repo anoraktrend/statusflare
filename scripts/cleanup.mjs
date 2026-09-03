@@ -49,6 +49,8 @@ AUTHELIA_CLIENT_SECRET=
 DISCORD_WEBHOOK_URL=
 MAILGUN_API_KEY=
 SESSION_SECRET=
+MONGODB_URI=mongodb+srv://user:pass@cluster.mongodb.net/statusflare?retryWrites=true&w=majority
+MONGODB_DB_NAME=statusflare
 `;
 
 const ADMIN_PASSWORD_HASH_RE = /("ADMIN_PASSWORD_HASH"\s*:\s*")[^"]*(")/;
@@ -95,4 +97,4 @@ console.log('created .dev.vars.example');
 console.log(`\nDone. ${changed} file(s) changed. Commit the result before publishing:\n`);
 console.log('  git add -A && git commit -m "chore: clean personal configuration"');
 console.log('\nNext step for the new operator:\n');
-console.log('  pnpm setup   # interactive: domain, email, secrets, D1, deps, seed');
+console.log('  pnpm setup   # interactive: domain, email, secrets, MongoDB Atlas, deps');

@@ -9,8 +9,7 @@ export function StatusCells({
 	size?: number;
 	className?: string;
 }) {
-	const color = (status: string) =>
-		status === 'up' ? 'bg-ctp-green' : status === 'down' ? 'bg-ctp-red' : 'bg-ctp-yellow';
+	const color = (status: string) => (status === 'up' ? 'bg-ctp-green' : status === 'down' ? 'bg-ctp-red' : 'bg-ctp-yellow');
 	return (
 		<div className={`flex gap-1 overflow-x-auto no-scrollbar mask-fade ${className}`}>
 			{[...history].reverse().map((h) => (

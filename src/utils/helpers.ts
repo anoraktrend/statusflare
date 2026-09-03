@@ -30,7 +30,12 @@ export function overallStatus(
 	const hasIncident = manualIncidents.length > 0;
 
 	if (hasIncident || allDown) {
-		return { status: hasIncident ? 'down' : 'down', text: hasIncident ? 'Active System Incident' : 'Major System Outage', color: 'ctp-red', hex: '#f38ba8' };
+		return {
+			status: hasIncident ? 'down' : 'down',
+			text: hasIncident ? 'Active System Incident' : 'Major System Outage',
+			color: 'ctp-red',
+			hex: '#f38ba8',
+		};
 	}
 	if (!allUp && checked.length > 0) {
 		return { status: 'degraded', text: 'Partial System Outage', color: 'ctp-yellow', hex: '#f9e2af' };

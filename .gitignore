@@ -171,3 +171,4 @@ bun.lockb
 .wrangler/
 agents.md
 GEMINI.md
+atlas-credentials.env

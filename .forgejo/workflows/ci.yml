@@ -2,9 +2,9 @@ name: StatusFlare CI/CD
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   pull_request:
-    branches: [ main ]
+    branches: [main]
   workflow_dispatch:
 
 enable-email-notifications: true
